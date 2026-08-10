@@ -2,17 +2,19 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { CatCharacter } from './components/CatCharacter';
 import { RewardCard } from './components/RewardCard';
 import { REWARDS, chooseReward, getGrade } from './data';
+import { LEVELS, getLevel } from './levels';
 import { saveMemeCard, shareChallenge } from './share';
+import type { CatPose } from './levels';
 import type { GameResult } from './types';
 
-type Screen = 'home' | 'game' | 'result' | 'collection';
+type Screen = 'home' | 'levels' | 'game' | 'result' | 'collection';
 type Position = { x: number; y: number; tilt: number };
 type Aim = { x: number; y: number; clientX: number; clientY: number; startedAt: number };
 
 const START_POSITION: Position = { x: 50, y: 48, tilt: 0 };
 const COLLECTION_KEY = 'hachan-cat-collection-v1';
-const ROUND_MS = 15_000;
-const HIT_RADIUS = 78;
+const PROGRESS_KEY = 'hachan-cat-level-v1';
+const SELECTED_LEVEL_KEY = 'hachan-cat-selected-level-v1';
 const NEAR_MISS_RADIUS = 126;
 
 const MOVE_PATTERNS: Position[][] = [
@@ -42,11 +44,15 @@ function App() {
   const [screen, setScreen] = useState<Screen>('home');
   const [attempts, setAttempts] = useState(0);
   const [nearMisses, setNearMisses] = useState(0);
+  const [selectedLevel, setSelectedLevel] = useState(() => Number(localStorage.getItem(SELECTED_LEVEL_KEY) ?? 1));
+  const [unlockedLevel, setUnlockedLevel] = useState(() => Number(localStorage.getItem(PROGRESS_KEY) ?? 1));
   const [position, setPosition] = useState(START_POSITION);
+  const [pose, setPose] = useState<CatPose>('wiggle');
+  const [bossHits, setBossHits] = useState(0);
   const [taunt, setTaunt] = useState('누르고 조준해 보시지');
   const [tauntKey, setTauntKey] = useState(0);
   const [aim, setAim] = useState<Aim | null>(null);
-  const [remainingMs, setRemainingMs] = useState(ROUND_MS);
+  const [remainingMs, setRemainingMs] = useState(() => getLevel(selectedLevel).roundMs);
   const [overtime, setOvertime] = useState(false);
   const [feedback, setFeedback] = useState<{ key: number; text: string; near: boolean } | null>(null);
   const [result, setResult] = useState<GameResult | null>(null);
@@ -63,19 +69,25 @@ function App() {
   const aimRef = useRef<Aim | null>(null);
   const overtimeRef = useRef(false);
   const attemptsRef = useRef(0);
+  const bossHitsRef = useRef(0);
 
   useEffect(() => {
     localStorage.setItem(COLLECTION_KEY, JSON.stringify(collection));
   }, [collection]);
 
+  useEffect(() => { localStorage.setItem(PROGRESS_KEY, String(unlockedLevel)); }, [unlockedLevel]);
+  useEffect(() => { localStorage.setItem(SELECTED_LEVEL_KEY, String(selectedLevel)); }, [selectedLevel]);
+
   useEffect(() => { aimRef.current = aim; }, [aim]);
   useEffect(() => { overtimeRef.current = overtime; }, [overtime]);
+
+  const difficulty = getLevel(selectedLevel);
 
   useEffect(() => {
     if (screen !== 'game') return;
 
     const clock = window.setInterval(() => {
-      const left = Math.max(0, ROUND_MS - (Date.now() - startedAt.current));
+      const left = Math.max(0, difficulty.roundMs - (Date.now() - startedAt.current));
       setRemainingMs(left);
       if (left === 0 && !overtimeRef.current) {
         overtimeRef.current = true;
@@ -88,11 +100,19 @@ function App() {
     let moveTimer = 0;
     const move = () => {
       const pattern = MOVE_PATTERNS[patternIndex.current];
-      const next = pattern[moveStep.current % pattern.length];
+      const raw = pattern[moveStep.current % pattern.length];
+      const step = moveStep.current;
+      const next = difficulty.behavior === 'moonwalk' && step % 2 === 1
+        ? { ...raw, x: 100 - raw.x, tilt: -raw.tilt }
+        : difficulty.behavior === 'wall'
+          ? { ...raw, x: step % 2 ? 82 : 18, tilt: step % 2 ? 14 : -14 }
+          : raw;
+      const nextPose = difficulty.poses[step % difficulty.poses.length];
       moveStep.current += 1;
+      setPose(nextPose);
       setPosition(next);
-      const elapsed = Date.now() - startedAt.current;
-      const delay = overtimeRef.current ? 1180 : Math.max(520, 920 - elapsed / 28);
+      const tempoDelay = difficulty.behavior === 'tempo' && step % 2 ? difficulty.moveDelay * 1.65 : difficulty.moveDelay;
+      const delay = overtimeRef.current ? Math.max(900, difficulty.moveDelay * 1.8) : tempoDelay;
       moveTimer = window.setTimeout(move, delay);
     };
     moveTimer = window.setTimeout(move, 700);
@@ -101,7 +121,7 @@ function App() {
       window.clearInterval(clock);
       window.clearTimeout(moveTimer);
     };
-  }, [screen]);
+  }, [screen, difficulty]);
 
   useEffect(() => {
     if (!aim || screen !== 'game') return;
@@ -110,27 +130,32 @@ function App() {
       moveCatAway(aimRef.current.clientX, aimRef.current.clientY);
       setTaunt(overtimeRef.current ? '지쳤다고 멈춘 건 아님' : '조준하는 거 다 보임');
       setTauntKey((value) => value + 1);
-    }, overtime ? 760 : 480);
+    }, overtime ? difficulty.dodgeDelay * 1.7 : difficulty.dodgeDelay);
     return () => window.clearTimeout(dodgeTimer);
-  }, [aim?.startedAt, overtime, screen]);
+  }, [aim?.startedAt, overtime, screen, difficulty]);
 
   const collectionCount = useMemo(() => new Set(collection).size, [collection]);
-  const fatigue = Math.round((1 - remainingMs / ROUND_MS) * 100);
+  const fatigue = Math.round((1 - remainingMs / difficulty.roundMs) * 100);
 
-  function startGame() {
+  function startGame(level = selectedLevel) {
+    const safeLevel = Math.min(level, unlockedLevel);
+    setSelectedLevel(safeLevel);
     startedAt.current = Date.now();
     patternIndex.current = Math.floor(Math.random() * MOVE_PATTERNS.length);
     moveStep.current = 0;
     attemptsRef.current = 0;
+    bossHitsRef.current = 0;
     overtimeRef.current = false;
     aimRef.current = null;
     setAttempts(0);
     setNearMisses(0);
+    setBossHits(0);
+    setPose('wiggle');
     setPosition(START_POSITION);
     setTaunt('누르고 조준해 보시지');
     setAim(null);
     setFeedback(null);
-    setRemainingMs(ROUND_MS);
+    setRemainingMs(getLevel(safeLevel).roundMs);
     setOvertime(false);
     setResult(null);
     setScreen('game');
@@ -154,8 +179,10 @@ function App() {
     const dx = catX - clientX;
     const dy = catY - clientY;
     const length = Math.max(1, Math.hypot(dx, dy));
-    const nextX = clamp(((catX - field.left + (dx / length) * 135) / field.width) * 100, 18, 82);
-    const nextY = clamp(((catY - field.top + (dy / length) * 120) / field.height) * 100, 25, 76);
+    const dash = difficulty.behavior === 'basic' ? 95 : 135 + selectedLevel * 3;
+    const nextX = clamp(((catX - field.left + (dx / length) * dash) / field.width) * 100, 18, 82);
+    const nextY = clamp(((catY - field.top + (dy / length) * dash * .88) / field.height) * 100, 25, 76);
+    setPose(difficulty.behavior === 'moonwalk' ? 'moonwalk' : difficulty.behavior === 'ninja' ? 'leap' : 'panic');
     setPosition({ x: nextX, y: nextY, tilt: dx > 0 ? 8 : -8 });
   }
 
@@ -199,12 +226,25 @@ function App() {
     const catX = cat.left + cat.width / 2;
     const catY = cat.top + cat.height * 0.45;
     const distance = Math.hypot(event.clientX - catX, event.clientY - catY);
-    const hitRadius = overtimeRef.current ? HIT_RADIUS + 15 : HIT_RADIUS;
+    const hitRadius = overtimeRef.current ? difficulty.hitRadius + 15 : difficulty.hitRadius;
     const accuracy = clamp(Math.round(100 - Math.max(0, distance - 12) * 0.72), 0, 100);
     const elapsedMs = Date.now() - startedAt.current;
     clearAim();
 
     if (distance <= hitRadius) {
+      const requiredHits = difficulty.hitsRequired ?? 1;
+      const nextBossHits = bossHitsRef.current + 1;
+      if (nextBossHits < requiredHits) {
+        bossHitsRef.current = nextBossHits;
+        setBossHits(nextBossHits);
+        setPose(nextBossHits === 1 ? 'panic' : 'tired');
+        setFeedback({ key: Date.now(), text: nextBossHits === 1 ? '왕관 파괴!' : '마왕 체면 파괴!', near: true });
+        setTaunt(nextBossHits === 1 ? '왕관은 장식이었다!' : '아직 한 목숨 남았다냥');
+        setTauntKey((value) => value + 1);
+        moveCatAway(event.clientX, event.clientY);
+        if ('vibrate' in navigator) navigator.vibrate?.([35, 25, 70]);
+        return;
+      }
       const reward = chooseReward(accuracy, nextAttempts, elapsedMs);
       const [grade, verdict] = getGrade(accuracy, elapsedMs, nextAttempts);
       const nextResult: GameResult = {
@@ -213,12 +253,15 @@ function App() {
         accuracy,
         nearMisses,
         overtime: overtimeRef.current,
+        level: difficulty.id,
+        levelName: difficulty.name,
         grade,
         verdict,
         reward,
       };
       setResult(nextResult);
       setCollection((current) => [...current, reward.id]);
+      setUnlockedLevel((current) => Math.max(current, Math.min(LEVELS.length, difficulty.id + 1)));
       setFeedback({ key: Date.now(), text: `${accuracy}% 정확 포획!`, near: true });
       if ('vibrate' in navigator) navigator.vibrate?.([45, 30, 110]);
       window.setTimeout(() => setScreen('result'), 520);
@@ -264,18 +307,57 @@ function App() {
           </div>
           <div className="home-character-wrap">
             <div className="speech-bubble">손가락은 준비됐고?</div>
-            <CatCharacter />
+            <CatCharacter pose="taunt" />
             <span className="floor-shadow" />
           </div>
-          <button className="primary-button wobble-button" onClick={startGame}>잡으러 가기 <span>→</span></button>
+          <button className="level-select-button" onClick={() => setScreen('levels')}>
+            <span>현재 상대</span><strong>Lv.{difficulty.id} {difficulty.name}</strong><i>성깔 지도 ›</i>
+          </button>
+          <button className="primary-button wobble-button" onClick={() => startGame()}>잡으러 가기 <span>→</span></button>
           <p className="tiny-caption">확률 없음 · 놓친 건 전부 내 손가락 탓</p>
         </section>
       )}
 
+      {screen === 'levels' && (
+        <section className="levels-screen page-enter">
+          <div className="levels-heading">
+            <span className="kicker">12단계 킹받음</span>
+            <h1>성깔 지도</h1>
+            <p>잡을수록 더 성깔 더러운 고양이가 열려요.</p>
+          </div>
+          <div className="level-map">
+            {LEVELS.map((level) => {
+              const locked = level.id > unlockedLevel;
+              const selected = level.id === selectedLevel;
+              return (
+                <button
+                  key={level.id}
+                  className={`level-card ${locked ? 'is-locked' : ''} ${selected ? 'is-selected' : ''}`}
+                  onClick={() => !locked && startGame(level.id)}
+                  disabled={locked}
+                  style={{ '--level-accent': level.accent } as React.CSSProperties}
+                >
+                  <span>{locked ? '🔒' : `LV.${level.id}`}</span>
+                  <strong>{locked ? '아직 모름냥' : level.name}</strong>
+                  <p>{locked ? '앞 단계를 먼저 잡으세요.' : level.description}</p>
+                  <i>{level.chapter}</i>
+                </button>
+              );
+            })}
+          </div>
+          <button className="text-button" onClick={() => setScreen('home')}>일단 홈으로</button>
+        </section>
+      )}
+
       {screen === 'game' && (
-        <section className={`game-screen page-enter ${overtime ? 'is-overtime' : ''}`}>
+        <section className={`game-screen page-enter behavior-${difficulty.behavior} ${overtime ? 'is-overtime' : ''}`}>
           <div className="game-hud">
-            <div className="attempt-counter"><span>덮치기</span><strong>{attempts}</strong></div>
+            <div className="attempt-counter"><span>Lv.{difficulty.id} {difficulty.name}</span><strong>{attempts}</strong></div>
+            {difficulty.hitsRequired && (
+              <div className="boss-lives" aria-label={`대마왕 체력 ${difficulty.hitsRequired - bossHits}`}>
+                {Array.from({ length: difficulty.hitsRequired }, (_, index) => <i key={index} className={index < bossHits ? 'is-broken' : ''}>♛</i>)}
+              </div>
+            )}
             <div className="round-status">
               <div><span>{overtime ? '지침 타임' : '남은 시간'}</span><strong>{overtime ? 'NOW' : `${(remainingMs / 1000).toFixed(1)}s`}</strong></div>
               <div className="fatigue-track"><i style={{ width: `${overtime ? 100 : fatigue}%` }} /></div>
@@ -296,10 +378,11 @@ function App() {
               className={`cat-target ${overtime ? 'is-tired' : ''} ${result ? 'is-caught' : ''}`}
               style={{ left: `${position.x}%`, top: `${position.y}%`, transform: `translate(-50%, -50%) rotate(${position.tilt}deg)` }}
             >
-              <CatCharacter caught={Boolean(result)} reward={result?.reward} />
+              {difficulty.behavior === 'clone' && <><span className="cat-afterimage one"><CatCharacter pose={pose} /></span><span className="cat-afterimage two"><CatCharacter pose={pose} /></span></>}
+              <CatCharacter caught={Boolean(result)} reward={result?.reward} pose={overtime ? 'tired' : pose} />
             </div>
             {aim && (
-              <div className={`catch-reticle ${overtime ? 'is-wide' : ''}`} style={{ left: aim.x, top: aim.y }}>
+              <div className={`catch-reticle ${overtime ? 'is-wide' : ''} ${difficulty.behavior === 'warp' ? 'is-warped' : ''}`} style={{ left: aim.x, top: aim.y }}>
                 <span>놓기!</span>
               </div>
             )}
@@ -314,14 +397,17 @@ function App() {
         <section className="result-screen page-enter">
           <div className="confetti" aria-hidden="true">✦ <i>●</i> ◆ <b>✦</b> <em>●</em></div>
           <div className="result-heading">
-            <span>실력으로 포획 성공!</span>
+            <span>Lv.{result.level} {result.levelName} 포획 성공!</span>
             <h1>잡힌 게 아니라<br />제대로 잡힌 겁니다.</h1>
           </div>
           <RewardCard result={result} compact />
           <div className="result-actions">
-            <button className="primary-button" onClick={handleShare} disabled={Boolean(busy)}>{busy === 'share' ? '공유창 여는 중…' : '친구 도발하기'}</button>
+            {result.level < LEVELS.length && (
+              <button className="primary-button next-level-button" onClick={() => startGame(result.level + 1)}>더 빡센 {getLevel(result.level + 1).name} 잡기 <span>→</span></button>
+            )}
+            <button className={result.level < LEVELS.length ? 'secondary-button' : 'primary-button'} onClick={handleShare} disabled={Boolean(busy)}>{busy === 'share' ? '공유창 여는 중…' : '친구 도발하기'}</button>
             <button className="secondary-button" onClick={handleSave} disabled={Boolean(busy)}>{busy === 'save' ? '카드 만드는 중…' : '밈 카드 저장'}</button>
-            <button className="text-button" onClick={startGame}>기록 줄이러 다시 가기</button>
+            <button className="text-button" onClick={() => startGame(result.level)}>같은 성깔 기록 줄이기</button>
           </div>
         </section>
       )}
@@ -347,7 +433,7 @@ function App() {
               );
             })}
           </div>
-          <button className="primary-button" onClick={startGame}>더 잡으러 가기</button>
+          <button className="primary-button" onClick={() => startGame()}>더 잡으러 가기</button>
         </section>
       )}
     </main>

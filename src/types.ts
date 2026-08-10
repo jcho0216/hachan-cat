@@ -14,6 +14,8 @@ export type GameResult = {
   accuracy: number;
   nearMisses: number;
   overtime: boolean;
+  level: number;
+  levelName: string;
   grade: string;
   verdict: string;
   reward: CatReward;

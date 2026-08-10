@@ -1,17 +1,19 @@
 import type { CatReward } from '../types';
+import type { CatPose } from '../levels';
 
 type Props = {
   caught?: boolean;
   reward?: CatReward;
+  pose?: CatPose;
 };
 
-export function CatCharacter({ caught = false, reward }: Props) {
+export function CatCharacter({ caught = false, reward, pose = 'wiggle' }: Props) {
   const color = reward?.color ?? '#FFE0A8';
   const accent = reward?.accent ?? '#FF8D6B';
   const face = reward?.face ?? 'smug';
 
   return (
-    <div className={`cat-character ${caught ? 'is-caught' : ''}`} aria-hidden="true">
+    <div className={`cat-character pose-${pose} ${caught ? 'is-caught' : ''}`} aria-hidden="true">
       <svg className="cat-svg" viewBox="0 0 150 215" role="img" aria-label="씰룩거리는 졸라맨 고양이">
         <g className="cat-head">
           <path d="M31 54 24 14l35 19c10-4 22-4 32 0l35-19-7 41c8 9 12 21 12 34 0 35-25 57-56 57S19 124 19 89c0-14 4-26 12-35Z" fill={color} stroke="#202124" strokeWidth="6" strokeLinejoin="round" />
@@ -47,6 +49,9 @@ export function CatCharacter({ caught = false, reward }: Props) {
         </g>
       </svg>
       {!caught && <div className="wiggle-lines"><span /><span /></div>}
+      {!caught && pose === 'taunt' && <span className="pose-mark">♪</span>}
+      {!caught && pose === 'panic' && <span className="pose-mark">!</span>}
+      {!caught && pose === 'tired' && <span className="pose-mark">헥</span>}
     </div>
   );
 }

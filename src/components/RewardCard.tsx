@@ -5,7 +5,7 @@ export function RewardCard({ result, compact = false }: { result: GameResult; co
   return (
     <article className={`reward-card ${compact ? 'is-compact' : ''}`}>
       <div className="reward-card__topline">
-        <span>오늘의 포획 기록</span>
+        <span>Lv.{result.level} {result.levelName} 포획 기록</span>
         <span className="rarity-pill">{result.reward.rarity}</span>
       </div>
       <div className="reward-card__character">

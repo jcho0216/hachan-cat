@@ -3,7 +3,7 @@ import type { GameResult } from './types';
 const escapeXml = (value: string) => value.replace(/[<>&'\"]/g, (char) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' })[char]!);
 
 export async function createMemePng(result: GameResult): Promise<{ base64: string; blob: Blob }> {
-  const title = escapeXml(`${result.attempts}번 만에 ${result.reward.name} 포획`);
+  const title = escapeXml(`Lv.${result.level} ${result.levelName} · ${result.reward.name} 포획`);
   const verdict = escapeXml(result.verdict);
   const description = escapeXml(result.reward.description);
   const svg = `
@@ -65,7 +65,7 @@ export async function saveMemeCard(result: GameResult) {
 }
 
 export async function shareChallenge(result: GameResult) {
-  const message = `나는 이 하찮냥을 정확도 ${result.accuracy}%, ${(result.elapsedMs / 1000).toFixed(1)}초 만에 잡았어.\n너는 이것보다 느릴 듯 😼`;
+  const message = `Lv.${result.level} ${result.levelName}을 정확도 ${result.accuracy}%, ${(result.elapsedMs / 1000).toFixed(1)}초 만에 잡았어.\n너는 이것보다 느릴 듯 😼`;
   try {
     const { getTossShareLink, share } = await import('@apps-in-toss/web-framework');
     const link = await getTossShareLink('intoss://hachan-cat');
