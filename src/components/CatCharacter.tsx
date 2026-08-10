@@ -14,8 +14,8 @@ type Props = {
 export const CatCharacter = forwardRef<HTMLSpanElement, Props>(function CatCharacter(
   { caught = false, reward, pose = 'wiggle', fur, accent: accentProp, evil = 0 }, headRef,
 ) {
-  const color = reward?.color ?? fur ?? '#FFE0A8';
-  const accent = reward?.accent ?? accentProp ?? '#FF8D6B';
+  const color = fur ?? reward?.color ?? '#FFE0A8';
+  const accent = accentProp ?? reward?.accent ?? '#FF8D6B';
   const face = reward?.face ?? (evil >= 6 ? 'grumpy' : evil >= 3 ? 'smug' : 'blank');
 
   return (
@@ -42,10 +42,8 @@ export const CatCharacter = forwardRef<HTMLSpanElement, Props>(function CatChara
         </g>
         <g className="stick-body" fill="none" stroke="#202124" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round">
           <path className="torso" d="M75 145q-10 26 0 42" />
-          <path className="arm-left" d="M70 157 42 176" />
-          <path className="arm-right" d="M79 157 108 173" />
-          <circle className="hand-left" cx="41" cy="176" r="5" fill={color} />
-          <circle className="hand-right" cx="109" cy="173" r="5" fill={color} />
+          <g className="arm-left"><path d="M70 157 42 176" /><circle cx="41" cy="176" r="5" fill={color} /></g>
+          <g className="arm-right"><path d="M79 157 108 173" /><circle cx="109" cy="173" r="5" fill={color} /></g>
           <path className="leg-left" d="M75 186 52 208" />
           <path className="leg-right" d="M75 186 100 208" />
         </g>

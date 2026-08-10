@@ -19,3 +19,11 @@ export type GameResult = {
   verdict: string;
   reward: CatReward;
 };
+
+export type GameLoss = {
+  level: number;
+  levelName: string;
+  reason: 'time' | 'misses';
+  elapsedMs: number;
+  attempts: number;
+};

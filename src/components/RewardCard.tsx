@@ -1,7 +1,9 @@
 import { CatCharacter } from './CatCharacter';
+import { getLevel } from '../levels';
 import type { GameResult } from '../types';
 
 export function RewardCard({ result, compact = false }: { result: GameResult; compact?: boolean }) {
+  const level = getLevel(result.level);
   return (
     <article className={`reward-card ${compact ? 'is-compact' : ''}`}>
       <div className="reward-card__topline">
@@ -9,8 +11,8 @@ export function RewardCard({ result, compact = false }: { result: GameResult; co
         <span className="rarity-pill">{result.reward.rarity}</span>
       </div>
       <div className="reward-card__character">
-        <div className="reward-sun" style={{ background: result.reward.color }} />
-        <CatCharacter caught reward={result.reward} />
+        <div className="reward-sun" style={{ background: level.accent }} />
+        <CatCharacter caught reward={result.reward} fur={level.fur} accent={level.accent} evil={level.evil} />
       </div>
       <p className="reward-card__eyebrow">정확도 {result.accuracy}% · {result.attempts}번의 덮치기</p>
       <h2>{result.reward.name}</h2>

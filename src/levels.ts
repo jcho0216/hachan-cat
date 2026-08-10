@@ -28,10 +28,10 @@ export type Difficulty = {
 
 const level = (
   id: number, name: string, chapter: string, description: string, behavior: CatBehavior,
-  moveDelay: number, dodgeDelay: number, hitRadius: number, roundMs: number,
+  moveDelay: number, dodgeDelay: number, hitRadius: number, _roundMs: number,
   accent: string, fur: string, poses: CatPose[], evil: number,
-  attemptsAllowed = id >= 13 ? 2 : 3, hitsRequired?: number,
-): Difficulty => ({ id, name, chapter, description, behavior, moveDelay, dodgeDelay, hitRadius, roundMs, accent, fur, poses, evil, attemptsAllowed, hitsRequired });
+  _attemptsAllowed = 5, hitsRequired?: number,
+): Difficulty => ({ id, name, chapter, description, behavior, moveDelay, dodgeDelay, hitRadius, roundMs: 15_000, accent, fur, poses, evil, attemptsAllowed: 5, hitsRequired });
 
 export const LEVELS: Difficulty[] = [
   level(1, '눈치냥', '입문부터 얄미움', '가만히 있지 않고 손가락을 감시해요.', 'watch', 790, 590, 78, 13_000, '#FFD95A', '#FFE3A9', ['wiggle', 'weave'], 0),
@@ -54,10 +54,10 @@ export const LEVELS: Difficulty[] = [
   level(15, '소용돌이냥', '규칙을 배신함', '점점 좁아지는 나선으로 유인해요.', 'spiral', 325, 195, 53, 8_800, '#A8B84D', '#D7B9FF', ['windmill', 'taunt', 'weave'], 5),
   level(16, '카오스냥', '규칙을 배신함', '매 순간 이동 규칙을 바꿔요.', 'chaos', 310, 185, 52, 8_600, '#E0A43C', '#B8D7FF', ['crab', 'leap', 'butt', 'flatten'], 5),
 
-  level(17, '철벽냥', '고양이가 지배함', '머리 대신 엉덩이를 내밀어 방어해요.', 'guard', 295, 175, 50, 8_400, '#F08A38', '#B7B7C8', ['butt', 'matrix', 'paddle'], 6, 2, 2),
-  level(18, '분노냥', '고양이가 지배함', '시간이 갈수록 계속 빨라져요.', 'rage', 280, 165, 49, 8_200, '#F2673D', '#9696AC', ['panic', 'windmill', 'weave'], 7, 2, 2),
-  level(19, '근위대장냥', '고양이가 지배함', '분신과 예측 회피를 동시에 써요.', 'overlord', 265, 155, 48, 8_000, '#E54343', '#6F7188', ['peek', 'matrix', 'paddle', 'leap'], 8, 2, 3),
-  level(20, '대마왕 하찮냥', '고양이가 지배함', '지금까지의 비겁함을 전부 꺼내요.', 'overlord', 245, 145, 46, 7_800, '#B92235', '#4E4A5E', ['taunt', 'butt', 'windmill', 'flatten', 'weave'], 10, 2, 4),
+  level(17, '철벽냥', '고양이가 지배함', '머리 대신 엉덩이를 내밀어 방어해요.', 'guard', 295, 175, 50, 8_400, '#F08A38', '#B7B7C8', ['butt', 'matrix', 'paddle'], 6, undefined, 2),
+  level(18, '분노냥', '고양이가 지배함', '시간이 갈수록 계속 빨라져요.', 'rage', 280, 165, 49, 8_200, '#F2673D', '#9696AC', ['panic', 'windmill', 'weave'], 7, undefined, 2),
+  level(19, '근위대장냥', '고양이가 지배함', '분신과 예측 회피를 동시에 써요.', 'overlord', 265, 155, 48, 8_000, '#E54343', '#6F7188', ['peek', 'matrix', 'paddle', 'leap'], 8, undefined, 3),
+  level(20, '대마왕 하찮냥', '고양이가 지배함', '지금까지의 비겁함을 전부 꺼내요.', 'overlord', 245, 145, 46, 7_800, '#B92235', '#4E4A5E', ['taunt', 'butt', 'windmill', 'flatten', 'weave'], 10, undefined, 4),
 ];
 
 export const getLevel = (id: number) => LEVELS[Math.max(0, Math.min(LEVELS.length - 1, id - 1))];

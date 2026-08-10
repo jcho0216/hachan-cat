@@ -72,6 +72,132 @@ export const REWARDS: CatReward[] = [
     accent: '#F0B429',
     face: 'proud',
   },
+  {
+    id: 'sidestep-master',
+    name: '옆걸음장인냥',
+    description: '정면 승부를 외치며 계속 옆으로만 갔다.',
+    rarity: '흔함',
+    color: '#C9E7FF',
+    accent: '#4C9FE8',
+    face: 'smug',
+  },
+  {
+    id: 'emergency-stop',
+    name: '급정거냥',
+    description: '잡힌 이유를 브레이크 점검 탓으로 돌리고 있다.',
+    rarity: '쓸데없이 희귀',
+    color: '#FFD0C8',
+    accent: '#F2674F',
+    face: 'grumpy',
+  },
+  {
+    id: 'afterimage',
+    name: '잔상만남은냥',
+    description: '본묘는 잡혔지만 잔상은 아직 퇴근하지 않았다.',
+    rarity: '쓸데없이 희귀',
+    color: '#D7D2FF',
+    accent: '#756BE8',
+    face: 'blank',
+  },
+  {
+    id: 'spoiler',
+    name: '스포냥',
+    description: '다음 손가락 위치를 알았지만 결과는 몰랐다.',
+    rarity: '흔함',
+    color: '#C5F1E5',
+    accent: '#36B98A',
+    face: 'proud',
+  },
+  {
+    id: 'push-pull',
+    name: '밀당실패냥',
+    description: '밀고 당기다 본인만 포획 원 안으로 들어왔다.',
+    rarity: '흔함',
+    color: '#FFE6AD',
+    accent: '#EAA52D',
+    face: 'grumpy',
+  },
+  {
+    id: 'crab-license',
+    name: '게면허냥',
+    description: '고양이인데 옆으로만 달릴 수 있는 자격증이 있다.',
+    rarity: '쓸데없이 희귀',
+    color: '#FFD3B8',
+    accent: '#EF754A',
+    face: 'smug',
+  },
+  {
+    id: 'buffering',
+    name: '버퍼링냥',
+    description: '순간이동이 아니라 잠깐 끊긴 거라고 주장한다.',
+    rarity: '흔함',
+    color: '#CBE4FF',
+    accent: '#5289DF',
+    face: 'blank',
+  },
+  {
+    id: 'mirror-loss',
+    name: '거울보고진냥',
+    description: '상대를 따라 하다 자기 자신에게 패배했다.',
+    rarity: '쓸데없이 희귀',
+    color: '#D9F2FF',
+    accent: '#4AB4D4',
+    face: 'tired',
+  },
+  {
+    id: 'dizzy',
+    name: '빙글어지럽냥',
+    description: '소용돌이를 너무 열심히 돌아 목적을 잊었다.',
+    rarity: '흔함',
+    color: '#E8D2FF',
+    accent: '#9A65D8',
+    face: 'sleepy',
+  },
+  {
+    id: 'chaos-excuse',
+    name: '규칙없냥',
+    description: '규칙이 없으니 패배도 없다는 새 규칙을 만들었다.',
+    rarity: '전설인 척함',
+    color: '#FFE2A8',
+    accent: '#F05F72',
+    face: 'proud',
+  },
+  {
+    id: 'butt-shield',
+    name: '엉덩방패냥',
+    description: '최후의 방어 수단과 체면을 동시에 잃었다.',
+    rarity: '쓸데없이 희귀',
+    color: '#D2D1DE',
+    accent: '#77768C',
+    face: 'grumpy',
+  },
+  {
+    id: 'anger-management',
+    name: '분노조절못냥',
+    description: '빨라질수록 잘한다고 믿었지만 더 빨리 잡혔다.',
+    rarity: '흔함',
+    color: '#FFC6B8',
+    accent: '#E64D3D',
+    face: 'grumpy',
+  },
+  {
+    id: 'captain-demoted',
+    name: '대장강등냥',
+    description: '분신 둘과 함께 단체로 보직 해임됐다.',
+    rarity: '전설인 척함',
+    color: '#BBBCCB',
+    accent: '#555A76',
+    face: 'tired',
+  },
+  {
+    id: 'overlord-retired',
+    name: '마왕퇴직냥',
+    description: '세계 정복보다 밈 카드 모델이 적성에 맞았다.',
+    rarity: '전설인 척함',
+    color: '#A9A4B8',
+    accent: '#B92235',
+    face: 'proud',
+  },
 ];
 
 export function getGrade(accuracy: number, elapsedMs: number, attempts: number) {
@@ -83,8 +209,6 @@ export function getGrade(accuracy: number, elapsedMs: number, attempts: number) 
   return ['냥', '근성도 실력으로 쳐드립니다'];
 }
 
-export function chooseReward(accuracy: number, attempts: number, elapsedMs: number) {
-  if (accuracy >= 95 && elapsedMs <= 7000) return REWARDS[5];
-  const pool = accuracy >= 82 || attempts <= 4 ? REWARDS : REWARDS.slice(0, 4);
-  return pool[Math.floor(Math.random() * pool.length)];
+export function chooseReward(level: number) {
+  return REWARDS[Math.max(0, Math.min(REWARDS.length - 1, level - 1))];
 }

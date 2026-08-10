@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CatCharacter } from './components/CatCharacter';
+import { LossCard } from './components/LossCard';
 import { RewardCard } from './components/RewardCard';
 import { REWARDS, chooseReward, getGrade } from './data';
 import { LEVELS, getLevel } from './levels';
-import { saveMemeCard, shareChallenge } from './share';
+import { saveLossMemeCard, saveMemeCard, shareChallenge, shareLossChallenge } from './share';
 import type { CatBehavior, CatPose } from './levels';
-import type { GameResult } from './types';
+import type { GameLoss, GameResult } from './types';
 
 type Screen = 'home' | 'levels' | 'game' | 'result' | 'loss' | 'collection';
 type Position = { x: number; y: number; tilt: number };
@@ -13,6 +14,7 @@ type Aim = { x: number; y: number; clientX: number; clientY: number; startedAt: 
 
 const START_POSITION: Position = { x: 50, y: 50, tilt: 0 };
 const COLLECTION_KEY = 'hachan-cat-collection-v1';
+const CAUGHT_LEVELS_KEY = 'hachan-cat-caught-levels-v1';
 const PROGRESS_KEY = 'hachan-cat-level-v1';
 const SELECTED_LEVEL_KEY = 'hachan-cat-selected-level-v1';
 const MISS_TAUNTS = ['거긴 나 방금 살던 곳', '화면만 억울하게 맞았네', '손가락이 길을 잃었어요', '그 속도로 모기 잡겠어?'];
@@ -67,6 +69,14 @@ function App() {
   const [nearMisses, setNearMisses] = useState(0);
   const [selectedLevel, setSelectedLevel] = useState(() => Number(localStorage.getItem(SELECTED_LEVEL_KEY) ?? 1));
   const [unlockedLevel, setUnlockedLevel] = useState(() => Math.min(LEVELS.length, Number(localStorage.getItem(PROGRESS_KEY) ?? 1)));
+  const [caughtLevels, setCaughtLevels] = useState<number[]>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(CAUGHT_LEVELS_KEY) ?? '[]') as number[];
+      if (saved.length) return saved;
+    } catch { /* 기존 진행도에서 복구 */ }
+    const progress = Math.min(LEVELS.length, Number(localStorage.getItem(PROGRESS_KEY) ?? 1));
+    return Array.from({ length: Math.max(0, progress - 1) }, (_, index) => index + 1);
+  });
   const [position, setPosition] = useState(START_POSITION);
   const [pose, setPose] = useState<CatPose>('wiggle');
   const [bossHits, setBossHits] = useState(0);
@@ -76,7 +86,8 @@ function App() {
   const [remainingMs, setRemainingMs] = useState(() => getLevel(selectedLevel).roundMs);
   const [feedback, setFeedback] = useState<{ key: number; text: string; near: boolean } | null>(null);
   const [result, setResult] = useState<GameResult | null>(null);
-  const [lossReason, setLossReason] = useState<'time' | 'misses'>('time');
+  const [lossResult, setLossResult] = useState<GameLoss | null>(null);
+  const [collectionTab, setCollectionTab] = useState<'levels' | 'memes'>('levels');
   const [collection, setCollection] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem(COLLECTION_KEY) ?? '[]'); } catch { return []; } });
   const [busy, setBusy] = useState<'save' | 'share' | null>(null);
 
@@ -93,6 +104,10 @@ function App() {
   const difficulty = getLevel(selectedLevel);
 
   useEffect(() => { localStorage.setItem(COLLECTION_KEY, JSON.stringify(collection)); }, [collection]);
+  useEffect(() => { localStorage.setItem(CAUGHT_LEVELS_KEY, JSON.stringify(caughtLevels)); }, [caughtLevels]);
+  useEffect(() => {
+    setCollection((current) => Array.from(new Set([...current, ...caughtLevels.flatMap((id) => REWARDS[id - 1]?.id ?? [])])));
+  }, [caughtLevels]);
   useEffect(() => { localStorage.setItem(PROGRESS_KEY, String(unlockedLevel)); }, [unlockedLevel]);
   useEffect(() => { localStorage.setItem(SELECTED_LEVEL_KEY, String(selectedLevel)); }, [selectedLevel]);
   useEffect(() => { aimRef.current = aim; }, [aim]);
@@ -105,7 +120,7 @@ function App() {
       setRemainingMs(left);
       if (left === 0 && !finishedRef.current) {
         finishedRef.current = true;
-        setLossReason('time');
+        setLossResult({ level: difficulty.id, levelName: difficulty.name, reason: 'time', elapsedMs: difficulty.roundMs, attempts: attemptsRef.current });
         setTaunt('시간도 네 편은 아니네?');
         setScreen('loss');
       }
@@ -139,7 +154,8 @@ function App() {
     return () => window.clearTimeout(dodgeTimer);
   }, [aim?.startedAt, screen, difficulty]);
 
-  const collectionCount = useMemo(() => new Set(collection).size, [collection]);
+  const collectionCount = useMemo(() => new Set(caughtLevels).size, [caughtLevels]);
+  const rewardCount = useMemo(() => new Set(collection).size, [collection]);
   const timeProgress = Math.round((remainingMs / difficulty.roundMs) * 100);
 
   function startGame(levelId = selectedLevel) {
@@ -149,7 +165,7 @@ function App() {
     moveStep.current = 0; attemptsRef.current = 0; missesRef.current = 0; bossHitsRef.current = 0; finishedRef.current = false; aimRef.current = null; positionRef.current = START_POSITION;
     setAttempts(0); setMisses(0); setNearMisses(0); setBossHits(0); setPose('wiggle'); setPosition(START_POSITION);
     setTaunt('잡아봐. 어디 한번.'); setTauntKey((value) => value + 1); setAim(null); setFeedback(null);
-    setRemainingMs(getLevel(safeLevel).roundMs); setResult(null); setScreen('game');
+    setRemainingMs(getLevel(safeLevel).roundMs); setResult(null); setLossResult(null); setScreen('game');
   }
 
   function pointInField(clientX: number, clientY: number) {
@@ -226,10 +242,11 @@ function App() {
         return;
       }
       finishedRef.current = true;
-      const reward = chooseReward(accuracy, nextAttempts, elapsedMs);
+      const reward = chooseReward(difficulty.id);
       const [grade, verdict] = getGrade(accuracy, elapsedMs, nextAttempts);
       const nextResult: GameResult = { attempts: nextAttempts, elapsedMs, accuracy, nearMisses, level: difficulty.id, levelName: difficulty.name, grade, verdict, reward };
       setResult(nextResult); setCollection((current) => [...current, reward.id]);
+      setCaughtLevels((current) => current.includes(difficulty.id) ? current : [...current, difficulty.id]);
       setUnlockedLevel((current) => Math.max(current, Math.min(LEVELS.length, difficulty.id + 1)));
       setFeedback({ key: Date.now(), text: `${accuracy}% 정확 포획!`, near: true });
       if ('vibrate' in navigator) navigator.vibrate?.([45, 30, 110]);
@@ -248,12 +265,16 @@ function App() {
     moveCatAway(event.clientX, event.clientY);
     if ('vibrate' in navigator) navigator.vibrate?.(isNear ? [18, 20, 18] : 14);
     if (nextMisses >= difficulty.attemptsAllowed) {
-      finishedRef.current = true; setLossReason('misses'); window.setTimeout(() => setScreen('loss'), 480);
+      finishedRef.current = true;
+      setLossResult({ level: difficulty.id, levelName: difficulty.name, reason: 'misses', elapsedMs, attempts: nextAttempts });
+      window.setTimeout(() => setScreen('loss'), 480);
     }
   }
 
   async function handleSave() { if (!result || busy) return; setBusy('save'); try { await saveMemeCard(result); } finally { setBusy(null); } }
   async function handleShare() { if (!result || busy) return; setBusy('share'); try { await shareChallenge(result); } finally { setBusy(null); } }
+  async function handleLossSave() { if (!lossResult || busy) return; setBusy('save'); try { await saveLossMemeCard(lossResult); } finally { setBusy(null); } }
+  async function handleLossShare() { if (!lossResult || busy) return; setBusy('share'); try { await shareLossChallenge(lossResult); } finally { setBusy(null); } }
 
   const character = (caught = false) => <CatCharacter ref={caught ? undefined : headRef} caught={caught} reward={caught ? result?.reward : undefined} pose={pose} fur={difficulty.fur} accent={difficulty.accent} evil={difficulty.evil} />;
 
@@ -292,11 +313,10 @@ function App() {
         </div><p className="game-tip">머리가 실제 판정 부위예요 · 실수 {difficulty.attemptsAllowed}번이면 패배</p>
       </section>}
 
-      {screen === 'loss' && <section className="loss-screen page-enter">
-        <span className="loss-stamp">CAT WINS</span><div className="loss-cat"><CatCharacter pose="taunt" fur={difficulty.fur} accent={difficulty.accent} evil={difficulty.evil} /></div>
-        <h1>{lossReason === 'time' ? '시간 끝. 고양이 승.' : '손이 먼저 털렸습니다.'}</h1><p>{lossReason === 'time' ? '휴식도, 보너스 타임도 없습니다.' : `${difficulty.attemptsAllowed}번의 헛손질을 고양이가 전부 기억합니다.`}</p>
-        <blockquote>“{lossReason === 'time' ? '기다리면 쉬워질 줄 알았어?' : '다음 손가락 데려와.'}”</blockquote>
-        <button className="primary-button" onClick={() => startGame(difficulty.id)}>자존심 재도전 <span>→</span></button><button className="text-button" onClick={() => setScreen('levels')}>다른 고양이 보기</button>
+      {screen === 'loss' && lossResult && <section className="loss-screen page-enter">
+        <div className="loss-heading"><span className="loss-stamp">CAT WINS</span><h1>{lossResult.reason === 'time' ? '시간 끝. 고양이 승.' : '손이 먼저 털렸습니다.'}</h1><p>졌지만 콘텐츠는 남았습니다.</p></div>
+        <LossCard loss={lossResult} />
+        <div className="loss-actions"><button className="primary-button" onClick={handleLossShare} disabled={Boolean(busy)}>{busy === 'share' ? '공유창 여는 중…' : '패배 자랑하기'} <span>→</span></button><button className="secondary-button" onClick={handleLossSave} disabled={Boolean(busy)}>{busy === 'save' ? '카드 만드는 중…' : '패배 밈 카드 저장'}</button><button className="text-button" onClick={() => startGame(lossResult.level)}>자존심 재도전</button><button className="text-button" onClick={() => setScreen('levels')}>다른 고양이 보기</button></div>
       </section>}
 
       {screen === 'result' && result && <section className="result-screen page-enter">
@@ -304,7 +324,13 @@ function App() {
         <div className="result-actions">{result.level < LEVELS.length && <button className="primary-button next-level-button" onClick={() => startGame(result.level + 1)}>더 악랄한 {getLevel(result.level + 1).name} <span>→</span></button>}<button className={result.level < LEVELS.length ? 'secondary-button' : 'primary-button'} onClick={handleShare} disabled={Boolean(busy)}>{busy === 'share' ? '공유창 여는 중…' : '친구 도발하기'}</button><button className="secondary-button" onClick={handleSave} disabled={Boolean(busy)}>{busy === 'save' ? '카드 만드는 중…' : '밈 카드 저장'}</button><button className="text-button" onClick={() => startGame(result.level)}>같은 성깔 기록 줄이기</button></div>
       </section>}
 
-      {screen === 'collection' && <section className="collection-screen page-enter"><div className="collection-heading"><span className="kicker">아무 쓸모 없는 수집품</span><h1>고양이 도감</h1><p>{collectionCount}/{REWARDS.length}마리를 괜히 모았어요.</p></div><div className="collection-grid">{REWARDS.map((cat) => { const unlocked = collection.includes(cat.id); return <article key={cat.id} className={`collection-card ${unlocked ? '' : 'is-locked'}`}><div className="collection-cat" style={{ background: unlocked ? cat.color : '#E8E5DF' }}>{unlocked ? <CatCharacter caught reward={cat} /> : <span>?</span>}</div><strong>{unlocked ? cat.name : '아직 모름냥'}</strong><p>{unlocked ? cat.description : '잡다 보면 쓸데없이 나타나요.'}</p></article>; })}</div><button className="primary-button" onClick={() => startGame()}>더 잡으러 가기</button></section>}
+      {screen === 'collection' && <section className="collection-screen page-enter">
+        <div className="collection-heading"><span className="kicker">잡은 성깔은 박제됩니다</span><h1>하찮냥 수집함</h1><p>고양이와 전용 밈 카드를 한 쌍씩 모아보세요.</p></div>
+        <div className="collection-tabs"><button className={collectionTab === 'levels' ? 'is-active' : ''} onClick={() => setCollectionTab('levels')}>성깔 도감 <strong>{collectionCount}/20</strong></button><button className={collectionTab === 'memes' ? 'is-active' : ''} onClick={() => setCollectionTab('memes')}>밈 카드 <strong>{rewardCount}/20</strong></button></div>
+        {collectionTab === 'levels' ? <div className="collection-grid level-collection-grid">{LEVELS.map((level) => { const caught = caughtLevels.includes(level.id); return <article key={level.id} className={`collection-card level-collection-card ${caught ? '' : 'is-locked'}`}><div className="collection-cat" style={{ background: caught ? `linear-gradient(145deg,#fff 55%,${level.accent})` : '#E8E5DF' }}>{caught ? <CatCharacter caught pose={level.poses[0]} fur={level.fur} accent={level.accent} evil={level.evil} /> : <span>?</span>}</div><span className="collection-level">LV.{level.id}</span><strong>{caught ? level.name : '아직 모름냥'}</strong><p>{caught ? level.description : '직접 잡아야 정체가 보여요.'}</p></article>; })}</div>
+          : <div className="collection-grid meme-collection-grid">{REWARDS.map((cat, index) => { const unlocked = collection.includes(cat.id); const level = LEVELS[index]; return <article key={cat.id} className={`collection-card ${unlocked ? '' : 'is-locked'}`}><div className="collection-cat" style={{ background: unlocked ? `linear-gradient(145deg,#fff 55%,${level.accent})` : '#E8E5DF' }}>{unlocked ? <CatCharacter caught reward={cat} fur={level.fur} accent={level.accent} evil={level.evil} /> : <span>?</span>}</div><span className="collection-level">LV.{index + 1}</span><strong>{unlocked ? cat.name : '아직 모름냥'}</strong><p>{unlocked ? cat.description : '해당 레벨을 잡으면 확정 지급돼요.'}</p></article>; })}</div>}
+        <button className="primary-button" onClick={() => startGame()}>더 잡으러 가기</button>
+      </section>}
     </main>
   );
 }

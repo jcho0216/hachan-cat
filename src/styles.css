@@ -177,12 +177,18 @@ button:disabled { opacity: .6; cursor: wait; }
 
 .collection-screen { min-height: calc(100dvh - 64px); padding: 18px 22px calc(32px + env(safe-area-inset-bottom)); overflow-y: auto; }
 .collection-heading h1 { margin: 15px 0 2px; font-size: 36px; letter-spacing: -2px; }.collection-heading p { margin: 0; color: #817970; font-size: 13px; }
+.collection-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 22px 0 4px; padding: 5px; border: 2px solid var(--ink); border-radius: 17px; background: #fff; }
+.collection-tabs button { min-height: 43px; border: 0; border-radius: 11px; background: transparent; color: #817970; font-size: 12px; font-weight: 800; cursor: pointer; }.collection-tabs button.is-active { background: var(--ink); color: #fff; }.collection-tabs strong { margin-left: 3px; font-size: 10px; }
+.meme-collection-heading { margin-top: 34px; }.meme-collection-heading h2 { margin: 14px 0 2px; font-size: 27px; letter-spacing: -1.5px; }.meme-collection-heading p { margin: 0; color: #817970; font-size: 12px; }
 .collection-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 24px 0; }
 .collection-card { min-width: 0; border: 2px solid var(--ink); border-radius: 20px; background: #fff; padding: 10px; box-shadow: 3px 4px 0 var(--ink); }
 .collection-cat { height: 130px; border-radius: 14px; display: grid; place-items: center; overflow: hidden; }
 .collection-cat .cat-character { width: 78px; margin-top: 28px; }.collection-cat > span { font: 700 42px 'Gaegu', cursive; color: #9b958c; }
 .collection-card strong { display: block; margin-top: 9px; font-size: 14px; }.collection-card p { margin: 3px 0 2px; color: #7e776e; font-size: 9px; line-height: 1.45; }
 .collection-card.is-locked { border-color: #bbb5ab; box-shadow: 3px 4px 0 #bbb5ab; }.collection-card.is-locked strong { color: #817b73; }
+.level-collection-card { position: relative; }.level-collection-card .collection-cat { height: 144px; }.level-collection-card .collection-cat .cat-character { width: 86px; margin-top: 24px; }
+.collection-level { display: inline-block; margin-top: 9px; padding: 2px 6px; border-radius: 99px; background: var(--yellow); font-size: 8px; font-weight: 900; }
+.level-collection-card strong { display: inline; margin-left: 5px; }.meme-collection-grid { margin-top: 17px; }
 
 /* 실제 머리와 판정점을 같은 포즈로 움직인다. */
 .cat-head-anchor { position: absolute; left: 10%; top: 3%; width: 80%; height: 58%; border-radius: 44% 44% 48% 48%; z-index: 4; transform-origin: 50% 82%; }
@@ -236,12 +242,11 @@ button:disabled { opacity: .6; cursor: wait; }
 .behavior-blink .cat-target { transition-duration: .07s; }
 .behavior-rage .game-field, .behavior-overlord .game-field { background: radial-gradient(circle at center,rgba(185,34,53,.15),transparent 60%); }
 
-.loss-screen { min-height: calc(100dvh - 64px); padding: 22px 24px calc(28px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; align-items: center; text-align: center; }
+.loss-screen { height: calc(100dvh - 64px); padding: 10px 22px calc(28px + env(safe-area-inset-bottom)); overflow-y: auto; text-align: center; }
 .loss-stamp { padding: 6px 13px; border: 3px solid var(--coral); color: var(--coral); font: 900 15px/1 'Noto Sans KR',sans-serif; letter-spacing: 2px; transform: rotate(-5deg); }
-.loss-cat { height: 280px; display: grid; place-items: center; }.loss-cat .cat-character { width: 174px; }
-.loss-screen h1 { margin: 0; font-size: 31px; letter-spacing: -2px; }.loss-screen > p { margin: 10px 0; color: #746d64; font-size: 14px; }
-.loss-screen blockquote { margin: 10px 0 25px; color: var(--coral); font: 700 20px 'Gaegu',cursive; }
-.loss-screen .text-button { margin-top: 9px; }
+.loss-heading { margin: 10px 0 16px; }.loss-heading h1 { margin: 14px 0 2px; font-size: 27px; letter-spacing: -1.5px; }.loss-heading p { margin: 0; color: #746d64; font-size: 12px; }
+.loss-card { box-shadow: 7px 8px 0 #B92235; }.loss-card .loss-pill { background: #B92235; color: #fff; }.loss-card .loss-sun { opacity: .72; }.loss-card blockquote { color: var(--coral); }
+.loss-actions { display: grid; gap: 10px; margin-top: 22px; }.loss-actions .text-button + .text-button { margin-top: -8px; }
 
 @media (max-height: 720px) {
   .home-copy h1 { font-size: 38px; margin-top: 12px; }
