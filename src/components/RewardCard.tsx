@@ -26,7 +26,7 @@ export function RewardCard({ result, compact = false }: { result: GameResult; co
         </div>
         <div>
           <strong>{(result.elapsedMs / 1000).toFixed(1)}초</strong>
-          <span>{result.overtime ? '끝장 승부' : '포획 시간'}</span>
+          <span>포획 시간</span>
         </div>
       </div>
       <blockquote>“{result.verdict}”</blockquote>

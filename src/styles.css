@@ -81,14 +81,12 @@ button:focus-visible { outline: 4px solid #3b82f6; outline-offset: 3px; }
 .cat-character.pose-moonwalk { animation: catMoonwalk .7s ease-in-out infinite alternate; }
 .cat-character.pose-taunt { animation: catTaunt .38s ease-in-out infinite alternate; }
 .cat-character.pose-panic { animation: catPanic .22s linear infinite alternate; }
-.cat-character.pose-tired { animation: catTired .85s ease-in-out infinite alternate; }
 .pose-crouch .stick-body { transform: translateY(8px) scaleY(.75); transform-origin: 75px 185px; }
 .pose-leap .arm-left { transform: rotate(-38deg); }.pose-leap .arm-right { transform: rotate(38deg); }
 .pose-leap .leg-left { transform: rotate(22deg); }.pose-leap .leg-right { transform: rotate(-22deg); }
 .pose-moonwalk .stick-body { transform: skewX(-13deg); transform-origin: center; }
 .pose-taunt .arm-left, .pose-taunt .arm-right { transform: rotate(42deg); }
 .pose-panic .stick-body { transform: scaleX(1.08); transform-origin: center; }
-.pose-tired .stick-body { transform: rotate(12deg) scaleY(.88); transform-origin: 75px 150px; }
 .pose-mark { position: absolute; right: -5px; top: 42%; z-index: 2; color: var(--coral); font: 700 22px 'Gaegu', cursive; animation: poseMark .65s ease-out infinite; }
 @keyframes catCrouch { to { transform: translateY(13px) scale(1.08,.82); } }
 @keyframes catLeap { to { transform: translateY(-24px) rotate(7deg) scale(.9,1.08); } }
@@ -96,7 +94,6 @@ button:focus-visible { outline: 4px solid #3b82f6; outline-offset: 3px; }
 @keyframes catMoonwalk { to { transform: translateX(-17px) skewX(-7deg) rotate(-3deg); } }
 @keyframes catTaunt { to { transform: rotate(10deg) translateX(7px); } }
 @keyframes catPanic { to { transform: translate(7px,-5px) rotate(7deg); } }
-@keyframes catTired { to { transform: translateY(7px) rotate(4deg) scaleY(.94); } }
 @keyframes poseMark { to { opacity: 0; translate: 10px -15px; } }
 
 .primary-button, .secondary-button, .text-button { width: 100%; border: 0; cursor: pointer; font-weight: 800; }
@@ -120,6 +117,7 @@ button:focus-visible { outline: 4px solid #3b82f6; outline-offset: 3px; }
 .attempt-counter { display: flex; align-items: baseline; gap: 8px; }
 .attempt-counter { flex-direction: column; gap: 1px; }.attempt-counter strong { font-size: 24px; }
 .boss-lives { display: flex; gap: 3px; color: var(--coral); font-size: 16px; }.boss-lives i { font-style: normal; transition: .25s; }.boss-lives i.is-broken { opacity: .2; transform: rotate(25deg) translateY(3px); }
+.chance-lives { display: flex; gap: 4px; color: var(--coral); font-size: 9px; }.chance-lives i { font-style: normal; transition: .2s; }.chance-lives i.is-broken { opacity: .18; transform: scale(.55); }
 .game-hud span { color: #867e74; font-size: 12px; }
 .game-hud strong { font: 700 30px/1 'Gaegu', cursive; }
 .round-status { width: 132px; }
@@ -127,14 +125,11 @@ button:focus-visible { outline: 4px solid #3b82f6; outline-offset: 3px; }
 .round-status strong { font-size: 19px; }
 .fatigue-track { width: 100%; height: 7px; margin-top: 6px; overflow: hidden; border: 1.5px solid var(--ink); border-radius: 99px; background: #fff; }
 .fatigue-track i { display: block; height: 100%; background: var(--yellow); transition: width .12s linear; }
-.is-overtime .fatigue-track i { background: var(--coral); animation: overtimePulse .55s ease-in-out infinite alternate; }
 .game-field { flex: 1; min-height: 0; position: relative; overflow: hidden; touch-action: none; user-select: none; cursor: crosshair; background: radial-gradient(circle at center, rgba(255,217,90,.18), transparent 55%); }
 .game-field.is-aiming { background: radial-gradient(circle at center, rgba(255,103,87,.1), transparent 60%); }
-.cat-target { position: absolute; width: 142px; height: 208px; padding: 0; pointer-events: none; transition: left .48s cubic-bezier(.2,.72,.3,1), top .48s cubic-bezier(.2,.72,.3,1), transform .48s; z-index: 5; }
+.cat-target { position: absolute; width: 142px; height: 208px; padding: 0; pointer-events: none; transition: left var(--move-ms,.36s) cubic-bezier(.2,.72,.3,1), top var(--move-ms,.36s) cubic-bezier(.2,.72,.3,1), transform var(--move-ms,.36s); z-index: 5; }
 .cat-target .cat-character { width: 100%; }
 .cat-afterimage { position: absolute; inset: 0; z-index: -1; opacity: .18; filter: hue-rotate(90deg); }.cat-afterimage.one { translate: -58px 8px; }.cat-afterimage.two { translate: 58px -8px; }.cat-afterimage .cat-character { animation-delay: -.2s; }
-.cat-target.is-tired { transition-duration: .9s; filter: saturate(.8); }
-.cat-target.is-tired::after { content: '헥'; position: absolute; right: -5px; top: 45px; color: #8c8479; font: 700 17px 'Gaegu', cursive; animation: tiredPuff .8s ease-out infinite; }
 .taunt-bubble { width: max-content; max-width: 210px; translate: -50% 0; z-index: 7; animation: tauntPop .3s cubic-bezier(.2,1.5,.5,1) both; pointer-events: none; }
 @keyframes tauntPop { from { opacity: 0; scale: .65; translate: -50% 10px; } }
 .catch-reticle { position: absolute; width: 112px; height: 112px; translate: -50% -50%; border: 4px dashed var(--coral); border-radius: 50%; z-index: 10; pointer-events: none; animation: reticleLock .42s ease-in-out infinite alternate; box-shadow: 0 0 0 999px rgba(32,33,36,.035); }
@@ -148,8 +143,6 @@ button:focus-visible { outline: 4px solid #3b82f6; outline-offset: 3px; }
 .catch-feedback.is-near { color: var(--coral); }
 @keyframes reticleLock { to { scale: .92; rotate: 4deg; } }
 @keyframes feedbackPop { from { opacity: 0; scale: .65; } 30% { opacity: 1; scale: 1.14; } to { opacity: 0; translate: -50% -78%; } }
-@keyframes tiredPuff { to { opacity: 0; translate: 15px -10px; } }
-@keyframes overtimePulse { to { opacity: .55; } }
 @keyframes reticleWarp { to { scale: .91 1.08; rotate: 7deg; border-radius: 42% 58% 48% 52%; } }
 .field-dots i { position: absolute; width: 9px; height: 9px; border: 2px solid #cfc6b7; border-radius: 50%; }
 .field-dots i:nth-child(1) { left: 12%; top: 16%; }.field-dots i:nth-child(2) { right: 12%; top: 31%; }.field-dots i:nth-child(3) { left: 21%; bottom: 15%; }.field-dots i:nth-child(4) { right: 20%; bottom: 12%; }
@@ -190,6 +183,65 @@ button:disabled { opacity: .6; cursor: wait; }
 .collection-cat .cat-character { width: 78px; margin-top: 28px; }.collection-cat > span { font: 700 42px 'Gaegu', cursive; color: #9b958c; }
 .collection-card strong { display: block; margin-top: 9px; font-size: 14px; }.collection-card p { margin: 3px 0 2px; color: #7e776e; font-size: 9px; line-height: 1.45; }
 .collection-card.is-locked { border-color: #bbb5ab; box-shadow: 3px 4px 0 #bbb5ab; }.collection-card.is-locked strong { color: #817b73; }
+
+/* 실제 머리와 판정점을 같은 포즈로 움직인다. */
+.cat-head-anchor { position: absolute; left: 10%; top: 3%; width: 80%; height: 58%; border-radius: 44% 44% 48% 48%; z-index: 4; transform-origin: 50% 82%; }
+.pose-weave .cat-head, .pose-weave .cat-head-anchor { animation: headWeave .32s ease-in-out infinite alternate; }
+.pose-paddle .cat-head, .pose-paddle .cat-head-anchor { animation: headSlip .28s ease-in-out infinite alternate; }
+.pose-matrix .cat-head, .pose-matrix .cat-head-anchor { animation: headMatrix .46s ease-in-out infinite alternate; }
+.pose-butt .cat-head, .pose-butt .cat-head-anchor { animation: headButt .38s ease-in-out infinite alternate; }
+.pose-peek .cat-head, .pose-peek .cat-head-anchor { animation: headPeek .34s steps(2,end) infinite; }
+.pose-flatten .cat-head, .pose-flatten .cat-head-anchor { animation: headFlatten .3s ease-in-out infinite alternate; }
+
+.cat-character.pose-weave { animation: bodyWeave .32s ease-in-out infinite alternate; }
+.cat-character.pose-paddle { animation: bodyPaddle .28s ease-in-out infinite alternate; }
+.cat-character.pose-matrix { animation: bodyMatrix .46s ease-in-out infinite alternate; }
+.cat-character.pose-crab { animation: bodyCrab .3s steps(2,end) infinite; }
+.cat-character.pose-flatten { animation: bodyFlatten .3s ease-in-out infinite alternate; }
+.cat-character.pose-butt { animation: bodyButt .38s ease-in-out infinite alternate; }
+.cat-character.pose-windmill { animation: bodyWindmill .38s linear infinite; }
+.cat-character.pose-peek { animation: bodyPeek .34s steps(2,end) infinite; }
+.pose-paddle .arm-left { animation: paddleLeft .18s ease-in-out infinite alternate; }.pose-paddle .arm-right { animation: paddleRight .18s ease-in-out infinite alternate; }
+.pose-weave .arm-left { animation: paddleRight .26s ease-in-out infinite alternate; }.pose-weave .arm-right { animation: paddleLeft .26s ease-in-out infinite alternate; }
+.pose-matrix .stick-body { transform: skewX(-28deg) rotate(10deg); transform-origin: 75px 190px; }
+.pose-crab .stick-body { transform: rotate(-88deg) translate(-8px,4px); transform-origin: 75px 175px; }
+.pose-flatten .stick-body { transform: scaleY(.38) scaleX(1.35); transform-origin: 75px 205px; }
+.pose-butt .stick-body { transform: rotate(28deg) translateX(10px); transform-origin: 75px 185px; }
+.pose-butt .arm-left, .pose-butt .arm-right { transform: rotate(55deg); }
+.pose-windmill .arm-left { animation: windmill .32s linear infinite; }.pose-windmill .arm-right { animation: windmillReverse .32s linear infinite; }
+.pose-peek .stick-body { transform: skewX(20deg); transform-origin: 75px 190px; }
+
+@keyframes headWeave { from { transform: translate(-13px,3px) rotate(-10deg); } to { transform: translate(13px,-2px) rotate(10deg); } }
+@keyframes headSlip { from { transform: translate(-18px,2px) rotate(-13deg); } to { transform: translate(18px,-2px) rotate(13deg); } }
+@keyframes headMatrix { to { transform: translate(23px,12px) rotate(24deg); } }
+@keyframes headButt { to { transform: translate(-24px,8px) rotate(-22deg); } }
+@keyframes headPeek { 50% { transform: translateX(22px) rotate(12deg); } }
+@keyframes headFlatten { to { transform: translateY(18px) scale(1.1,.7); } }
+@keyframes bodyWeave { from { transform: skewX(-12deg) translateX(-5px); } to { transform: skewX(12deg) translateX(5px); } }
+@keyframes bodyPaddle { to { transform: translateX(7px) rotate(5deg); } }
+@keyframes bodyMatrix { to { transform: translateY(8px) rotate(-9deg); } }
+@keyframes bodyCrab { 50% { transform: translate(8px,-5px) rotate(3deg); } }
+@keyframes bodyFlatten { to { transform: translateY(16px) scale(1.08,.78); } }
+@keyframes bodyButt { to { transform: translateX(10px) rotate(12deg); } }
+@keyframes bodyWindmill { to { transform: rotate(6deg) translateY(-5px); } }
+@keyframes bodyPeek { 50% { transform: translateX(-11px) skewX(-9deg); } }
+@keyframes paddleLeft { to { transform: rotate(-78deg) translate(-5px,-2px); } }
+@keyframes paddleRight { to { transform: rotate(78deg) translate(5px,-2px); } }
+@keyframes windmill { to { transform: rotate(360deg); } } @keyframes windmillReverse { to { transform: rotate(-360deg); } }
+
+.evil-aura { position: absolute; inset: -8px -10px auto auto; color: var(--coral); font-size: 22px; animation: evilAura .42s ease-in-out infinite alternate; }
+@keyframes evilAura { to { transform: scale(1.5) rotate(35deg); opacity: .4; } }
+.evil-6 .cat-svg, .evil-7 .cat-svg { filter: drop-shadow(2px 5px 0 rgba(112,40,50,.16)); }
+.evil-8 .cat-svg, .evil-9 .cat-svg, .evil-10 .cat-svg { filter: drop-shadow(0 0 7px rgba(185,34,53,.32)) drop-shadow(2px 5px 0 rgba(32,33,36,.14)); }
+.behavior-blink .cat-target { transition-duration: .07s; }
+.behavior-rage .game-field, .behavior-overlord .game-field { background: radial-gradient(circle at center,rgba(185,34,53,.15),transparent 60%); }
+
+.loss-screen { min-height: calc(100dvh - 64px); padding: 22px 24px calc(28px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; align-items: center; text-align: center; }
+.loss-stamp { padding: 6px 13px; border: 3px solid var(--coral); color: var(--coral); font: 900 15px/1 'Noto Sans KR',sans-serif; letter-spacing: 2px; transform: rotate(-5deg); }
+.loss-cat { height: 280px; display: grid; place-items: center; }.loss-cat .cat-character { width: 174px; }
+.loss-screen h1 { margin: 0; font-size: 31px; letter-spacing: -2px; }.loss-screen > p { margin: 10px 0; color: #746d64; font-size: 14px; }
+.loss-screen blockquote { margin: 10px 0 25px; color: var(--coral); font: 700 20px 'Gaegu',cursive; }
+.loss-screen .text-button { margin-top: 9px; }
 
 @media (max-height: 720px) {
   .home-copy h1 { font-size: 38px; margin-top: 12px; }
