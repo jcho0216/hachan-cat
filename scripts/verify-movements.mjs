@@ -6,7 +6,8 @@ const start = { x: 50, y: 50, tilt: 0 };
 const key = (position) => `${position.x.toFixed(2)}:${position.y.toFixed(2)}:${position.tilt.toFixed(2)}`;
 
 for (const level of LEVELS) {
-  for (const aiming of [false, true]) {
+  for (const behavior of [level.behavior, level.secondaryBehavior]) {
+    for (const aiming of [false, true]) {
     let current = { ...start };
     const positions = [];
     let consecutiveSame = 0;
@@ -19,7 +20,7 @@ for (const level of LEVELS) {
         dx: Math.cos(step * .71) * 5,
         dy: -Math.sin(step * .53) * 4,
       } : null;
-      const next = movementFor(level.behavior, step, current, aim);
+      const next = movementFor(behavior, step, current, aim);
       assert.ok(Number.isFinite(next.x) && Number.isFinite(next.y) && Number.isFinite(next.tilt), `Lv.${level.id} ${level.name}: invalid number`);
       assert.ok(next.x >= 15 && next.x <= 85, `Lv.${level.id} ${level.name}: x out of bounds (${next.x})`);
       assert.ok(next.y >= 23 && next.y <= 77, `Lv.${level.id} ${level.name}: y out of bounds (${next.y})`);
@@ -31,6 +32,7 @@ for (const level of LEVELS) {
 
     assert.ok(new Set(positions).size >= 3, `Lv.${level.id} ${level.name}: stuck in one position (${aiming ? 'aiming' : 'idle'})`);
     assert.ok(maxConsecutiveSame <= 1, `Lv.${level.id} ${level.name}: repeated one position too long (${aiming ? 'aiming' : 'idle'})`);
+    }
   }
 }
 
@@ -40,4 +42,4 @@ for (const behavior of ['watch', 'dodge', 'predict', 'magnet', 'mirror', 'guard'
   assert.notEqual(key(left), key(right), `${behavior}: pointer position does not affect movement`);
 }
 
-console.log(`✓ ${LEVELS.length} cats × idle/aiming 80 steps verified`);
+console.log(`✓ ${LEVELS.length} cats × 2 patterns × idle/aiming 80 steps verified`);

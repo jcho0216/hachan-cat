@@ -18,6 +18,8 @@ export type GameResult = {
   grade: string;
   verdict: string;
   reward: CatReward;
+  mode?: 'campaign' | 'daily';
+  score?: number;
 };
 
 export type GameLoss = {
@@ -26,4 +28,7 @@ export type GameLoss = {
   reason: 'time' | 'misses';
   elapsedMs: number;
   attempts: number;
+  nearMisses: number;
+  closestDistance: number;
+  mode?: 'campaign' | 'daily';
 };

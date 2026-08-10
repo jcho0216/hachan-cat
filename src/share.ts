@@ -1,5 +1,6 @@
 import { getLevel } from './levels';
 import type { GameLoss, GameResult } from './types';
+import { getLossCopy } from './lossCopy';
 
 const escapeXml = (value: string) => value.replace(/[<>&'\"]/g, (char) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' })[char]!);
 
@@ -52,10 +53,10 @@ export async function createMemePng(result: GameResult): Promise<{ base64: strin
 
 export async function createLossMemePng(loss: GameLoss): Promise<{ base64: string; blob: Blob }> {
   const level = getLevel(loss.level);
-  const timeout = loss.reason === 'time';
-  const headline = timeout ? '시간한테도 진 인간' : '헛손질 국가대표';
-  const description = timeout ? '15초 동안 화면만 쓰다듬었습니다.' : '기회 5회를 야무지게 소진했습니다.';
-  const quote = timeout ? '기다리면 쉬워질 줄 알았어?' : '다음 손가락 데려와.';
+  const copy = getLossCopy(loss);
+  const headline = escapeXml(copy.title);
+  const description = escapeXml(copy.description);
+  const quote = escapeXml(copy.quote);
   const svg = `
   <svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350">
     <rect width="1080" height="1350" rx="72" fill="#FFF8E7"/>
