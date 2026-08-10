@@ -60,40 +60,47 @@ button:focus-visible { outline: 4px solid #3b82f6; outline-offset: 3px; }
 .speech-bubble::after, .taunt-bubble::after { content: ''; position: absolute; bottom: -10px; left: 28px; width: 16px; height: 16px; background: #fff; border-right: 3px solid var(--ink); border-bottom: 3px solid var(--ink); transform: rotate(45deg); }
 .floor-shadow { position: absolute; width: 130px; height: 24px; border-radius: 50%; background: rgba(32,33,36,.12); bottom: 48px; filter: blur(2px); }
 
-.cat-character { width: 150px; position: relative; transform-origin: 50% 78%; animation: hipWiggle .7s ease-in-out infinite alternate; }
+.cat-character { width: 150px; position: relative; transform-origin: 50% 78%; }
 .cat-svg { display: block; width: 100%; overflow: visible; filter: drop-shadow(1px 4px 0 rgba(32,33,36,.08)); }
-.cat-head { transform-origin: 75px 125px; animation: headBob .7s ease-in-out infinite alternate; }
+.cat-rig { transform-origin: 75px 185px; animation: rigSway .7s ease-in-out infinite alternate; }
+.upper-rig { transform-origin: 75px 140px; animation: upperFollow .7s ease-in-out infinite alternate; }
+.body-rig { transform-origin: 75px 185px; animation: bodyFollow .7s ease-in-out infinite alternate; }
 .arm-left, .leg-right { animation: limbLeft .7s ease-in-out infinite alternate; transform-origin: 75px 175px; }
 .arm-right, .leg-left { animation: limbRight .7s ease-in-out infinite alternate; transform-origin: 75px 175px; }
+.svg-head-anchor { pointer-events: none; }
 .wiggle-lines { position: absolute; inset: 56% -12px auto; display: flex; justify-content: space-between; }
 .wiggle-lines span { width: 18px; height: 10px; border-top: 3px solid var(--ink); border-radius: 50%; animation: lineBlink .7s step-end infinite; }
 .cat-character.is-caught { animation: caughtDrop .45s cubic-bezier(.3,.8,.4,1) both; }
-.cat-character.is-caught .cat-head, .cat-character.is-caught .arm-left, .cat-character.is-caught .arm-right, .cat-character.is-caught .leg-left, .cat-character.is-caught .leg-right { animation: none; }
-@keyframes hipWiggle { from { transform: rotate(-5deg) translateX(-4px); } to { transform: rotate(5deg) translateX(4px); } }
-@keyframes headBob { from { transform: rotate(3deg) translateY(-2px); } to { transform: rotate(-3deg) translateY(2px); } }
+.cat-character.is-caught .cat-rig, .cat-character.is-caught .upper-rig, .cat-character.is-caught .body-rig, .cat-character.is-caught .arm-left, .cat-character.is-caught .arm-right, .cat-character.is-caught .leg-left, .cat-character.is-caught .leg-right { animation: none; }
+@keyframes rigSway { from { transform: rotate(-3deg) translateX(-3px); } to { transform: rotate(3deg) translateX(3px); } }
+@keyframes upperFollow { from { transform: translate(-1px,-1px) rotate(1.5deg); } to { transform: translate(1px,1px) rotate(-1.5deg); } }
+@keyframes bodyFollow { from { transform: skewX(-2deg); } to { transform: skewX(2deg); } }
 @keyframes limbLeft { to { transform: rotate(10deg); } }
 @keyframes limbRight { to { transform: rotate(-10deg); } }
 @keyframes lineBlink { 50% { opacity: .15; } }
 @keyframes caughtDrop { 55% { transform: scale(1.13) rotate(-8deg); } 100% { transform: scale(.94) rotate(3deg) translateY(6px); } }
-.cat-character.pose-crouch { animation: catCrouch .42s ease-in-out infinite alternate; }
-.cat-character.pose-leap { animation: catLeap .5s cubic-bezier(.3,.1,.4,1) infinite alternate; }
-.cat-character.pose-sidestep { animation: catSidestep .44s steps(2,end) infinite; }
-.cat-character.pose-moonwalk { animation: catMoonwalk .7s ease-in-out infinite alternate; }
-.cat-character.pose-taunt { animation: catTaunt .38s ease-in-out infinite alternate; }
-.cat-character.pose-panic { animation: catPanic .22s linear infinite alternate; }
-.pose-crouch .stick-body { transform: translateY(8px) scaleY(.75); transform-origin: 75px 185px; }
+.pose-crouch .cat-rig { animation: rigCrouch .42s ease-in-out infinite alternate; }
+.pose-leap .cat-rig { animation: rigLeap .5s cubic-bezier(.3,.1,.4,1) infinite alternate; }
+.pose-sidestep .cat-rig { animation: rigSidestep .44s steps(2,end) infinite; }
+.pose-moonwalk .cat-rig { animation: rigMoonwalk .7s ease-in-out infinite alternate; }
+.pose-taunt .cat-rig { animation: rigTaunt .38s ease-in-out infinite alternate; }
+.pose-panic .cat-rig { animation: rigPanic .22s linear infinite alternate; }
+.pose-crouch .body-rig { animation: bodyCrouch .42s ease-in-out infinite alternate; }
+.pose-crouch .upper-rig { animation: upperCrouch .42s ease-in-out infinite alternate; }
 .pose-leap .arm-left { transform: rotate(-38deg); }.pose-leap .arm-right { transform: rotate(38deg); }
 .pose-leap .leg-left { transform: rotate(22deg); }.pose-leap .leg-right { transform: rotate(-22deg); }
-.pose-moonwalk .stick-body { transform: skewX(-13deg); transform-origin: center; }
+.pose-moonwalk .body-rig { animation: bodyMoonwalk .7s ease-in-out infinite alternate; }
 .pose-taunt .arm-left, .pose-taunt .arm-right { transform: rotate(42deg); }
-.pose-panic .stick-body { transform: scaleX(1.08); transform-origin: center; }
 .pose-mark { position: absolute; right: -5px; top: 42%; z-index: 2; color: var(--coral); font: 700 22px 'Gaegu', cursive; animation: poseMark .65s ease-out infinite; }
-@keyframes catCrouch { to { transform: translateY(13px) scale(1.08,.82); } }
-@keyframes catLeap { to { transform: translateY(-24px) rotate(7deg) scale(.9,1.08); } }
-@keyframes catSidestep { 50% { transform: translateX(-9px) rotate(-5deg); } }
-@keyframes catMoonwalk { to { transform: translateX(-17px) skewX(-7deg) rotate(-3deg); } }
-@keyframes catTaunt { to { transform: rotate(10deg) translateX(7px); } }
-@keyframes catPanic { to { transform: translate(7px,-5px) rotate(7deg); } }
+@keyframes rigCrouch { to { transform: translateY(10px) scale(1.05,.88); } }
+@keyframes bodyCrouch { to { transform: translateY(5px) scaleY(.78); } }
+@keyframes upperCrouch { to { transform: translateY(5px) rotate(-2deg); } }
+@keyframes rigLeap { to { transform: translateY(-22px) rotate(7deg) scale(.92,1.06); } }
+@keyframes rigSidestep { 50% { transform: translateX(-9px) rotate(-5deg); } }
+@keyframes rigMoonwalk { to { transform: translateX(-16px) skewX(-6deg) rotate(-3deg); } }
+@keyframes bodyMoonwalk { to { transform: skewX(-10deg) translateX(2px); } }
+@keyframes rigTaunt { to { transform: rotate(9deg) translateX(6px); } }
+@keyframes rigPanic { to { transform: translate(6px,-4px) rotate(6deg); } }
 @keyframes poseMark { to { opacity: 0; translate: 10px -15px; } }
 
 .primary-button, .secondary-button, .text-button { width: 100%; border: 0; cursor: pointer; font-weight: 800; }
@@ -190,47 +197,57 @@ button:disabled { opacity: .6; cursor: wait; }
 .collection-level { display: inline-block; margin-top: 9px; padding: 2px 6px; border-radius: 99px; background: var(--yellow); font-size: 8px; font-weight: 900; }
 .level-collection-card strong { display: inline; margin-left: 5px; }.meme-collection-grid { margin-top: 17px; }
 
-/* 실제 머리와 판정점을 같은 포즈로 움직인다. */
-.cat-head-anchor { position: absolute; left: 10%; top: 3%; width: 80%; height: 58%; border-radius: 44% 44% 48% 48%; z-index: 4; transform-origin: 50% 82%; }
-.pose-weave .cat-head, .pose-weave .cat-head-anchor { animation: headWeave .32s ease-in-out infinite alternate; }
-.pose-paddle .cat-head, .pose-paddle .cat-head-anchor { animation: headSlip .28s ease-in-out infinite alternate; }
-.pose-matrix .cat-head, .pose-matrix .cat-head-anchor { animation: headMatrix .46s ease-in-out infinite alternate; }
-.pose-butt .cat-head, .pose-butt .cat-head-anchor { animation: headButt .38s ease-in-out infinite alternate; }
-.pose-peek .cat-head, .pose-peek .cat-head-anchor { animation: headPeek .34s steps(2,end) infinite; }
-.pose-flatten .cat-head, .pose-flatten .cat-head-anchor { animation: headFlatten .3s ease-in-out infinite alternate; }
-
-.cat-character.pose-weave { animation: bodyWeave .32s ease-in-out infinite alternate; }
-.cat-character.pose-paddle { animation: bodyPaddle .28s ease-in-out infinite alternate; }
-.cat-character.pose-matrix { animation: bodyMatrix .46s ease-in-out infinite alternate; }
-.cat-character.pose-crab { animation: bodyCrab .3s steps(2,end) infinite; }
-.cat-character.pose-flatten { animation: bodyFlatten .3s ease-in-out infinite alternate; }
-.cat-character.pose-butt { animation: bodyButt .38s ease-in-out infinite alternate; }
-.cat-character.pose-windmill { animation: bodyWindmill .38s linear infinite; }
-.cat-character.pose-peek { animation: bodyPeek .34s steps(2,end) infinite; }
+/* 관절 리그: 머리, 목, 몸통이 하나의 포즈 타임라인을 공유한다. */
+.cat-rig, .upper-rig, .body-rig { transition: transform .14s ease-out; }
+.pose-weave .cat-rig { animation: rigWeave .32s ease-in-out infinite alternate; }
+.pose-weave .upper-rig { animation: upperWeave .32s ease-in-out infinite alternate; }
+.pose-weave .body-rig { animation: lowerWeave .32s ease-in-out infinite alternate; }
+.pose-paddle .cat-rig { animation: rigPaddle .28s ease-in-out infinite alternate; }
+.pose-paddle .upper-rig { animation: upperPaddle .28s ease-in-out infinite alternate; }
+.pose-paddle .body-rig { animation: lowerPaddle .28s ease-in-out infinite alternate; }
+.pose-matrix .cat-rig { animation: rigMatrix .46s ease-in-out infinite alternate; }
+.pose-matrix .upper-rig { animation: upperMatrix .46s ease-in-out infinite alternate; }
+.pose-matrix .body-rig { animation: lowerMatrix .46s ease-in-out infinite alternate; }
+.pose-crab .cat-rig { animation: rigCrab .3s steps(2,end) infinite; }
+.pose-crab .upper-rig { animation: upperCrab .3s steps(2,end) infinite; }
+.pose-crab .body-rig { animation: lowerCrab .3s steps(2,end) infinite; }
+.pose-flatten .cat-rig { animation: rigFlatten .3s ease-in-out infinite alternate; }
+.pose-flatten .upper-rig { animation: upperFlatten .3s ease-in-out infinite alternate; }
+.pose-flatten .body-rig { animation: lowerFlatten .3s ease-in-out infinite alternate; }
+.pose-butt .cat-rig { animation: rigButt .38s ease-in-out infinite alternate; }
+.pose-butt .upper-rig { animation: upperButt .38s ease-in-out infinite alternate; }
+.pose-butt .body-rig { animation: lowerButt .38s ease-in-out infinite alternate; }
+.pose-windmill .cat-rig { animation: rigWindmill .38s ease-in-out infinite alternate; }
+.pose-peek .cat-rig { animation: rigPeek .34s steps(2,end) infinite; }
+.pose-peek .upper-rig { animation: upperPeek .34s steps(2,end) infinite; }
+.pose-peek .body-rig { animation: lowerPeek .34s steps(2,end) infinite; }
 .pose-paddle .arm-left { animation: paddleLeft .18s ease-in-out infinite alternate; }.pose-paddle .arm-right { animation: paddleRight .18s ease-in-out infinite alternate; }
 .pose-weave .arm-left { animation: paddleRight .26s ease-in-out infinite alternate; }.pose-weave .arm-right { animation: paddleLeft .26s ease-in-out infinite alternate; }
-.pose-matrix .stick-body { transform: skewX(-28deg) rotate(10deg); transform-origin: 75px 190px; }
-.pose-crab .stick-body { transform: rotate(-88deg) translate(-8px,4px); transform-origin: 75px 175px; }
-.pose-flatten .stick-body { transform: scaleY(.38) scaleX(1.35); transform-origin: 75px 205px; }
-.pose-butt .stick-body { transform: rotate(28deg) translateX(10px); transform-origin: 75px 185px; }
 .pose-butt .arm-left, .pose-butt .arm-right { transform: rotate(55deg); }
 .pose-windmill .arm-left { animation: windmill .32s linear infinite; }.pose-windmill .arm-right { animation: windmillReverse .32s linear infinite; }
-.pose-peek .stick-body { transform: skewX(20deg); transform-origin: 75px 190px; }
 
-@keyframes headWeave { from { transform: translate(-13px,3px) rotate(-10deg); } to { transform: translate(13px,-2px) rotate(10deg); } }
-@keyframes headSlip { from { transform: translate(-18px,2px) rotate(-13deg); } to { transform: translate(18px,-2px) rotate(13deg); } }
-@keyframes headMatrix { to { transform: translate(23px,12px) rotate(24deg); } }
-@keyframes headButt { to { transform: translate(-24px,8px) rotate(-22deg); } }
-@keyframes headPeek { 50% { transform: translateX(22px) rotate(12deg); } }
-@keyframes headFlatten { to { transform: translateY(18px) scale(1.1,.7); } }
-@keyframes bodyWeave { from { transform: skewX(-12deg) translateX(-5px); } to { transform: skewX(12deg) translateX(5px); } }
-@keyframes bodyPaddle { to { transform: translateX(7px) rotate(5deg); } }
-@keyframes bodyMatrix { to { transform: translateY(8px) rotate(-9deg); } }
-@keyframes bodyCrab { 50% { transform: translate(8px,-5px) rotate(3deg); } }
-@keyframes bodyFlatten { to { transform: translateY(16px) scale(1.08,.78); } }
-@keyframes bodyButt { to { transform: translateX(10px) rotate(12deg); } }
-@keyframes bodyWindmill { to { transform: rotate(6deg) translateY(-5px); } }
-@keyframes bodyPeek { 50% { transform: translateX(-11px) skewX(-9deg); } }
+@keyframes rigWeave { from { transform: translateX(-3px) rotate(-4deg); } to { transform: translateX(3px) rotate(4deg); } }
+@keyframes upperWeave { from { transform: translateX(-5px) rotate(-5deg); } to { transform: translateX(5px) rotate(5deg); } }
+@keyframes lowerWeave { from { transform: translateX(-2px) skewX(-7deg); } to { transform: translateX(2px) skewX(7deg); } }
+@keyframes rigPaddle { from { transform: translateX(-4px) rotate(-3deg); } to { transform: translateX(4px) rotate(3deg); } }
+@keyframes upperPaddle { from { transform: translateX(-7px) rotate(-7deg); } to { transform: translateX(7px) rotate(7deg); } }
+@keyframes lowerPaddle { from { transform: translateX(-3px) skewX(-5deg); } to { transform: translateX(3px) skewX(5deg); } }
+@keyframes rigMatrix { to { transform: translateY(7px) rotate(-10deg) scale(.98,1.02); } }
+@keyframes upperMatrix { to { transform: translate(7px,3px) rotate(13deg); } }
+@keyframes lowerMatrix { to { transform: translateX(3px) skewX(-15deg); } }
+@keyframes rigCrab { 50% { transform: translate(7px,-4px) rotate(3deg); } }
+@keyframes upperCrab { 50% { transform: translateX(3px) rotate(3deg); } }
+@keyframes lowerCrab { 50% { transform: translateX(-2px) skewX(-5deg); } }
+@keyframes rigFlatten { to { transform: translateY(13px) scale(1.06,.82); } }
+@keyframes upperFlatten { to { transform: translateY(5px) scale(1.02,.93); } }
+@keyframes lowerFlatten { to { transform: translateY(3px) scaleY(.78); } }
+@keyframes rigButt { to { transform: translateX(8px) rotate(10deg); } }
+@keyframes upperButt { to { transform: translate(-5px,2px) rotate(-7deg); } }
+@keyframes lowerButt { to { transform: translateX(4px) rotate(12deg); } }
+@keyframes rigWindmill { to { transform: rotate(5deg) translateY(-4px); } }
+@keyframes rigPeek { 50% { transform: translateX(-8px) skewX(-5deg); } }
+@keyframes upperPeek { 50% { transform: translateX(7px) rotate(6deg); } }
+@keyframes lowerPeek { 50% { transform: translateX(-3px) skewX(-6deg); } }
 @keyframes paddleLeft { to { transform: rotate(-78deg) translate(-5px,-2px); } }
 @keyframes paddleRight { to { transform: rotate(78deg) translate(5px,-2px); } }
 @keyframes windmill { to { transform: rotate(360deg); } } @keyframes windmillReverse { to { transform: rotate(-360deg); } }
