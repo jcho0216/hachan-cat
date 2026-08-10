@@ -1,0 +1,10 @@
+node_modules
+dist
+*.ait
+.env
+.env.*
+*.local
+npm-debug.log*
+.pnpm-store
+*.tsbuildinfo
+screenshot-*.png
