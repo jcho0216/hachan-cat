@@ -1,93 +1,239 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CatCharacter } from './components/CatCharacter';
 import { RewardCard } from './components/RewardCard';
-import { REWARDS, TAUNTS, chooseReward, getGrade } from './data';
+import { REWARDS, chooseReward, getGrade } from './data';
 import { saveMemeCard, shareChallenge } from './share';
 import type { GameResult } from './types';
 
 type Screen = 'home' | 'game' | 'result' | 'collection';
 type Position = { x: number; y: number; tilt: number };
+type Aim = { x: number; y: number; clientX: number; clientY: number; startedAt: number };
 
 const START_POSITION: Position = { x: 50, y: 48, tilt: 0 };
 const COLLECTION_KEY = 'hachan-cat-collection-v1';
+const ROUND_MS = 15_000;
+const HIT_RADIUS = 78;
+const NEAR_MISS_RADIUS = 126;
+
+const MOVE_PATTERNS: Position[][] = [
+  [
+    { x: 24, y: 34, tilt: -7 }, { x: 72, y: 38, tilt: 8 },
+    { x: 64, y: 68, tilt: -5 }, { x: 31, y: 65, tilt: 7 },
+    { x: 52, y: 45, tilt: -3 },
+  ],
+  [
+    { x: 50, y: 29, tilt: 2 }, { x: 76, y: 58, tilt: -8 },
+    { x: 49, y: 72, tilt: 5 }, { x: 22, y: 54, tilt: -5 },
+    { x: 35, y: 36, tilt: 8 },
+  ],
+  [
+    { x: 25, y: 69, tilt: 7 }, { x: 35, y: 31, tilt: -6 },
+    { x: 75, y: 63, tilt: 5 }, { x: 66, y: 33, tilt: -8 },
+    { x: 49, y: 53, tilt: 3 },
+  ],
+];
+
+const MISS_TAUNTS = ['거긴 나 방금 살던 곳', '화면만 억울하게 맞았네', '손가락이 길을 잃었어요'];
+const NEAR_TAUNTS = ['방금 수염은 잡았어', '오, 그건 좀 위험했다', '털 한 가닥 드릴까요?'];
+
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 function App() {
   const [screen, setScreen] = useState<Screen>('home');
   const [attempts, setAttempts] = useState(0);
+  const [nearMisses, setNearMisses] = useState(0);
   const [position, setPosition] = useState(START_POSITION);
-  const [taunt, setTaunt] = useState('잡을 수 있으면 잡아보시지');
+  const [taunt, setTaunt] = useState('누르고 조준해 보시지');
   const [tauntKey, setTauntKey] = useState(0);
+  const [aim, setAim] = useState<Aim | null>(null);
+  const [remainingMs, setRemainingMs] = useState(ROUND_MS);
+  const [overtime, setOvertime] = useState(false);
+  const [feedback, setFeedback] = useState<{ key: number; text: string; near: boolean } | null>(null);
   const [result, setResult] = useState<GameResult | null>(null);
   const [collection, setCollection] = useState<string[]>(() => {
     try { return JSON.parse(localStorage.getItem(COLLECTION_KEY) ?? '[]'); } catch { return []; }
   });
   const [busy, setBusy] = useState<'save' | 'share' | null>(null);
+
+  const fieldRef = useRef<HTMLDivElement>(null);
+  const catRef = useRef<HTMLDivElement>(null);
   const startedAt = useRef(Date.now());
-  const lastTaunt = useRef(-1);
+  const patternIndex = useRef(0);
+  const moveStep = useRef(0);
+  const aimRef = useRef<Aim | null>(null);
+  const overtimeRef = useRef(false);
+  const attemptsRef = useRef(0);
 
   useEffect(() => {
     localStorage.setItem(COLLECTION_KEY, JSON.stringify(collection));
   }, [collection]);
 
+  useEffect(() => { aimRef.current = aim; }, [aim]);
+  useEffect(() => { overtimeRef.current = overtime; }, [overtime]);
+
+  useEffect(() => {
+    if (screen !== 'game') return;
+
+    const clock = window.setInterval(() => {
+      const left = Math.max(0, ROUND_MS - (Date.now() - startedAt.current));
+      setRemainingMs(left);
+      if (left === 0 && !overtimeRef.current) {
+        overtimeRef.current = true;
+        setOvertime(true);
+        setTaunt('잠깐, 나도 허리 좀…');
+        setTauntKey((value) => value + 1);
+      }
+    }, 80);
+
+    let moveTimer = 0;
+    const move = () => {
+      const pattern = MOVE_PATTERNS[patternIndex.current];
+      const next = pattern[moveStep.current % pattern.length];
+      moveStep.current += 1;
+      setPosition(next);
+      const elapsed = Date.now() - startedAt.current;
+      const delay = overtimeRef.current ? 1180 : Math.max(520, 920 - elapsed / 28);
+      moveTimer = window.setTimeout(move, delay);
+    };
+    moveTimer = window.setTimeout(move, 700);
+
+    return () => {
+      window.clearInterval(clock);
+      window.clearTimeout(moveTimer);
+    };
+  }, [screen]);
+
+  useEffect(() => {
+    if (!aim || screen !== 'game') return;
+    const dodgeTimer = window.setTimeout(() => {
+      if (!aimRef.current) return;
+      moveCatAway(aimRef.current.clientX, aimRef.current.clientY);
+      setTaunt(overtimeRef.current ? '지쳤다고 멈춘 건 아님' : '조준하는 거 다 보임');
+      setTauntKey((value) => value + 1);
+    }, overtime ? 760 : 480);
+    return () => window.clearTimeout(dodgeTimer);
+  }, [aim?.startedAt, overtime, screen]);
+
   const collectionCount = useMemo(() => new Set(collection).size, [collection]);
+  const fatigue = Math.round((1 - remainingMs / ROUND_MS) * 100);
 
   function startGame() {
     startedAt.current = Date.now();
+    patternIndex.current = Math.floor(Math.random() * MOVE_PATTERNS.length);
+    moveStep.current = 0;
+    attemptsRef.current = 0;
+    overtimeRef.current = false;
+    aimRef.current = null;
     setAttempts(0);
+    setNearMisses(0);
     setPosition(START_POSITION);
-    setTaunt('잡을 수 있으면 잡아보시지');
+    setTaunt('누르고 조준해 보시지');
+    setAim(null);
+    setFeedback(null);
+    setRemainingMs(ROUND_MS);
+    setOvertime(false);
     setResult(null);
     setScreen('game');
   }
 
-  function nextTaunt(nextAttempts: number) {
-    let index = Math.floor(Math.random() * TAUNTS.length);
-    if (index === lastTaunt.current) index = (index + 1) % TAUNTS.length;
-    lastTaunt.current = index;
-    if (nextAttempts >= 15) return '여기까지 온 게 더 무서움';
-    if (nextAttempts >= 11) return TAUNTS[Math.max(9, index) % TAUNTS.length];
-    return TAUNTS[index];
+  function pointInField(clientX: number, clientY: number) {
+    const rect = fieldRef.current?.getBoundingClientRect();
+    if (!rect) return null;
+    return {
+      x: clamp(clientX - rect.left, 0, rect.width),
+      y: clamp(clientY - rect.top, 0, rect.height),
+    };
   }
 
-  function shouldCatch(nextAttempts: number) {
-    if (nextAttempts >= 18) return true;
-    if (nextAttempts < 7) return false;
-    const chance = 0.08 + (nextAttempts - 7) * 0.055;
-    return Math.random() < chance;
+  function moveCatAway(clientX: number, clientY: number) {
+    const field = fieldRef.current?.getBoundingClientRect();
+    const cat = catRef.current?.getBoundingClientRect();
+    if (!field || !cat) return;
+    const catX = cat.left + cat.width / 2;
+    const catY = cat.top + cat.height * 0.45;
+    const dx = catX - clientX;
+    const dy = catY - clientY;
+    const length = Math.max(1, Math.hypot(dx, dy));
+    const nextX = clamp(((catX - field.left + (dx / length) * 135) / field.width) * 100, 18, 82);
+    const nextY = clamp(((catY - field.top + (dy / length) * 120) / field.height) * 100, 25, 76);
+    setPosition({ x: nextX, y: nextY, tilt: dx > 0 ? 8 : -8 });
   }
 
-  function moveCat() {
-    const x = 19 + Math.random() * 62;
-    const y = 27 + Math.random() * 48;
-    setPosition({ x, y, tilt: -9 + Math.random() * 18 });
+  function handleAimStart(event: React.PointerEvent<HTMLDivElement>) {
+    if (result) return;
+    const point = pointInField(event.clientX, event.clientY);
+    if (!point) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const nextAim = { ...point, clientX: event.clientX, clientY: event.clientY, startedAt: Date.now() };
+    aimRef.current = nextAim;
+    setAim(nextAim);
+    if ('vibrate' in navigator) navigator.vibrate?.(8);
   }
 
-  function handleCatPress(event: React.PointerEvent<HTMLButtonElement>) {
-    event.preventDefault();
-    const nextAttempts = attempts + 1;
+  function handleAimMove(event: React.PointerEvent<HTMLDivElement>) {
+    if (!aimRef.current) return;
+    const point = pointInField(event.clientX, event.clientY);
+    if (!point) return;
+    const nextAim = { ...aimRef.current, ...point, clientX: event.clientX, clientY: event.clientY };
+    aimRef.current = nextAim;
+    setAim(nextAim);
+  }
+
+  function clearAim() {
+    aimRef.current = null;
+    setAim(null);
+  }
+
+  function handleAimRelease(event: React.PointerEvent<HTMLDivElement>) {
+    const currentAim = aimRef.current;
+    const cat = catRef.current?.getBoundingClientRect();
+    if (!currentAim || !cat || result) {
+      clearAim();
+      return;
+    }
+
+    const nextAttempts = attemptsRef.current + 1;
+    attemptsRef.current = nextAttempts;
     setAttempts(nextAttempts);
 
-    if (shouldCatch(nextAttempts)) {
-      const reward = chooseReward(nextAttempts);
-      const [grade, verdict] = getGrade(nextAttempts);
-      const nextResult = {
+    const catX = cat.left + cat.width / 2;
+    const catY = cat.top + cat.height * 0.45;
+    const distance = Math.hypot(event.clientX - catX, event.clientY - catY);
+    const hitRadius = overtimeRef.current ? HIT_RADIUS + 15 : HIT_RADIUS;
+    const accuracy = clamp(Math.round(100 - Math.max(0, distance - 12) * 0.72), 0, 100);
+    const elapsedMs = Date.now() - startedAt.current;
+    clearAim();
+
+    if (distance <= hitRadius) {
+      const reward = chooseReward(accuracy, nextAttempts, elapsedMs);
+      const [grade, verdict] = getGrade(accuracy, elapsedMs, nextAttempts);
+      const nextResult: GameResult = {
         attempts: nextAttempts,
-        elapsedMs: Date.now() - startedAt.current,
+        elapsedMs,
+        accuracy,
+        nearMisses,
+        overtime: overtimeRef.current,
         grade,
         verdict,
         reward,
       };
       setResult(nextResult);
       setCollection((current) => [...current, reward.id]);
-      if ('vibrate' in navigator) navigator.vibrate?.([40, 35, 90]);
-      window.setTimeout(() => setScreen('result'), 420);
+      setFeedback({ key: Date.now(), text: `${accuracy}% 정확 포획!`, near: true });
+      if ('vibrate' in navigator) navigator.vibrate?.([45, 30, 110]);
+      window.setTimeout(() => setScreen('result'), 520);
       return;
     }
 
-    setTaunt(nextTaunt(nextAttempts));
+    const isNear = distance <= NEAR_MISS_RADIUS;
+    if (isNear) setNearMisses((value) => value + 1);
+    const pool = isNear ? NEAR_TAUNTS : MISS_TAUNTS;
+    const message = pool[nextAttempts % pool.length];
+    setTaunt(message);
     setTauntKey((value) => value + 1);
-    moveCat();
-    if ('vibrate' in navigator) navigator.vibrate?.(18);
+    setFeedback({ key: Date.now(), text: isNear ? '털끝 차이!' : '헛손질!', near: isNear });
+    moveCatAway(event.clientX, event.clientY);
+    if ('vibrate' in navigator) navigator.vibrate?.(isNear ? [18, 20, 18] : 14);
   }
 
   async function handleSave() {
@@ -105,7 +251,7 @@ function App() {
   return (
     <main className="app-shell">
       <header className="app-header">
-        <button className="wordmark" onClick={() => setScreen('home')} aria-label="홈으로">하찮첼<span>˙</span></button>
+        <button className="wordmark" onClick={() => setScreen('home')} aria-label="홈으로">하찮냥<span>˙</span></button>
         <button className="collection-link" onClick={() => setScreen('collection')}>도감 <strong>{collectionCount}</strong></button>
       </header>
 
@@ -114,7 +260,7 @@ function App() {
           <div className="home-copy">
             <span className="kicker">세상에서 제일 쓸데없는 승부</span>
             <h1>이 고양이,<br /><em>잡을 수 있겠어?</em></h1>
-            <p>잡으려 하면 피하고, 실패할수록 약 올려요.</p>
+            <p>누르고 조준한 뒤, 손을 떼어 직접 덮치세요.</p>
           </div>
           <div className="home-character-wrap">
             <div className="speech-bubble">손가락은 준비됐고?</div>
@@ -122,29 +268,45 @@ function App() {
             <span className="floor-shadow" />
           </div>
           <button className="primary-button wobble-button" onClick={startGame}>잡으러 가기 <span>→</span></button>
-          <p className="tiny-caption">주의: 생각보다 자존심이 상할 수 있음</p>
+          <p className="tiny-caption">확률 없음 · 놓친 건 전부 내 손가락 탓</p>
         </section>
       )}
 
       {screen === 'game' && (
-        <section className="game-screen page-enter">
+        <section className={`game-screen page-enter ${overtime ? 'is-overtime' : ''}`}>
           <div className="game-hud">
-            <div><span>시도</span><strong>{attempts}</strong></div>
-            <p>고양이를 눌러 잡으세요</p>
+            <div className="attempt-counter"><span>덮치기</span><strong>{attempts}</strong></div>
+            <div className="round-status">
+              <div><span>{overtime ? '지침 타임' : '남은 시간'}</span><strong>{overtime ? 'NOW' : `${(remainingMs / 1000).toFixed(1)}s`}</strong></div>
+              <div className="fatigue-track"><i style={{ width: `${overtime ? 100 : fatigue}%` }} /></div>
+            </div>
           </div>
-          <div className="game-field">
-            <div key={tauntKey} className="taunt-bubble" style={{ left: `${position.x}%`, top: `calc(${position.y}% - 135px)` }}>{taunt}</div>
-            <button
-              className="cat-target"
+          <div
+            ref={fieldRef}
+            className={`game-field ${aim ? 'is-aiming' : ''}`}
+            onPointerDown={handleAimStart}
+            onPointerMove={handleAimMove}
+            onPointerUp={handleAimRelease}
+            onPointerCancel={clearAim}
+            aria-label="고양이 포획 구역"
+          >
+            <div key={tauntKey} className="taunt-bubble" style={{ left: `${position.x}%`, top: `calc(${position.y}% - 132px)` }}>{taunt}</div>
+            <div
+              ref={catRef}
+              className={`cat-target ${overtime ? 'is-tired' : ''} ${result ? 'is-caught' : ''}`}
               style={{ left: `${position.x}%`, top: `${position.y}%`, transform: `translate(-50%, -50%) rotate(${position.tilt}deg)` }}
-              onPointerDown={handleCatPress}
-              aria-label="고양이 잡기"
             >
               <CatCharacter caught={Boolean(result)} reward={result?.reward} />
-            </button>
+            </div>
+            {aim && (
+              <div className={`catch-reticle ${overtime ? 'is-wide' : ''}`} style={{ left: aim.x, top: aim.y }}>
+                <span>놓기!</span>
+              </div>
+            )}
+            {feedback && <div key={feedback.key} className={`catch-feedback ${feedback.near ? 'is-near' : ''}`}>{feedback.text}</div>}
             <div className="field-dots" aria-hidden="true"><i /><i /><i /><i /></div>
           </div>
-          <p className="game-tip">꾹 누르지 말고 빠르게 톡!</p>
+          <p className="game-tip">누른 채 쫓아가다가, 고양이 위에서 손을 떼세요</p>
         </section>
       )}
 
@@ -152,14 +314,14 @@ function App() {
         <section className="result-screen page-enter">
           <div className="confetti" aria-hidden="true">✦ <i>●</i> ◆ <b>✦</b> <em>●</em></div>
           <div className="result-heading">
-            <span>포획 성공!</span>
-            <h1>잡힌 게 아니라<br />잡혀드린 겁니다.</h1>
+            <span>실력으로 포획 성공!</span>
+            <h1>잡힌 게 아니라<br />제대로 잡힌 겁니다.</h1>
           </div>
           <RewardCard result={result} compact />
           <div className="result-actions">
             <button className="primary-button" onClick={handleShare} disabled={Boolean(busy)}>{busy === 'share' ? '공유창 여는 중…' : '친구 도발하기'}</button>
             <button className="secondary-button" onClick={handleSave} disabled={Boolean(busy)}>{busy === 'save' ? '카드 만드는 중…' : '밈 카드 저장'}</button>
-            <button className="text-button" onClick={startGame}>한 번 더 농락당하기</button>
+            <button className="text-button" onClick={startGame}>기록 줄이러 다시 가기</button>
           </div>
         </section>
       )}

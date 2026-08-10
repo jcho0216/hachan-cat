@@ -11,6 +11,9 @@ export type CatReward = {
 export type GameResult = {
   attempts: number;
   elapsedMs: number;
+  accuracy: number;
+  nearMisses: number;
+  overtime: boolean;
   grade: string;
   verdict: string;
   reward: CatReward;

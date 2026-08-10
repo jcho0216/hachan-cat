@@ -74,16 +74,17 @@ export const REWARDS: CatReward[] = [
   },
 ];
 
-export function getGrade(attempts: number) {
-  if (attempts <= 3) return ['S+', '혹시 고양이세요?'];
-  if (attempts <= 7) return ['A', '인간 중에서는 빠른 편'];
-  if (attempts <= 12) return ['B', '자존심을 지켜냈습니다'];
-  if (attempts <= 17) return ['C', '근성으로 잡았습니다'];
-  return ['냥', '고양이가 불쌍해서 잡혀줌'];
+export function getGrade(accuracy: number, elapsedMs: number, attempts: number) {
+  const seconds = elapsedMs / 1000;
+  if (accuracy >= 92 && seconds <= 6 && attempts <= 3) return ['S+', '손가락 암살자'];
+  if (accuracy >= 82 && seconds <= 11) return ['A', '인간 중에서는 빠른 편'];
+  if (accuracy >= 70 && seconds <= 15) return ['B', '실력으로 자존심을 지켰습니다'];
+  if (attempts <= 8) return ['C', '끝내 궤도를 읽었습니다'];
+  return ['냥', '근성도 실력으로 쳐드립니다'];
 }
 
-export function chooseReward(attempts: number) {
-  if (attempts >= 18 && Math.random() < 0.42) return REWARDS[5];
-  const pool = attempts >= 13 ? REWARDS : REWARDS.slice(0, 4);
+export function chooseReward(accuracy: number, attempts: number, elapsedMs: number) {
+  if (accuracy >= 95 && elapsedMs <= 7000) return REWARDS[5];
+  const pool = accuracy >= 82 || attempts <= 4 ? REWARDS : REWARDS.slice(0, 4);
   return pool[Math.floor(Math.random() * pool.length)];
 }

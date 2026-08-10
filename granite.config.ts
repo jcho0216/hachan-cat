@@ -3,7 +3,7 @@ import { defineConfig } from '@apps-in-toss/web-framework/config';
 export default defineConfig({
   appName: 'hachan-cat',
   brand: {
-    displayName: '하찮첼',
+    displayName: '하찮냥',
     primaryColor: '#FF6B6B',
     icon: '',
   },

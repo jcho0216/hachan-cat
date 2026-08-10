@@ -11,7 +11,7 @@ export async function createMemePng(result: GameResult): Promise<{ base64: strin
     <rect width="1080" height="1350" rx="72" fill="#FFF8E7"/>
     <circle cx="540" cy="490" r="270" fill="${result.reward.color}"/>
     <text x="80" y="120" font-family="Arial,sans-serif" font-size="42" font-weight="700" fill="#202124">오늘의 포획 기록</text>
-    <text x="1000" y="120" text-anchor="end" font-family="Arial,sans-serif" font-size="30" fill="#6B645C">하찮첼</text>
+    <text x="1000" y="120" text-anchor="end" font-family="Arial,sans-serif" font-size="30" fill="#6B645C">하찮냥</text>
     <g transform="translate(310 220) scale(3.05)">
       <path d="M31 54 24 14l35 19c10-4 22-4 32 0l35-19-7 41c8 9 12 21 12 34 0 35-25 57-56 57S19 124 19 89c0-14 4-26 12-35Z" fill="${result.reward.color}" stroke="#202124" stroke-width="5" stroke-linejoin="round"/>
       <path d="m32 29 19 12-15 9ZM118 29l-19 12 15 9Z" fill="${result.reward.accent}"/>
@@ -53,26 +53,26 @@ export async function saveMemeCard(result: GameResult) {
   const { base64, blob } = await createMemePng(result);
   try {
     const { saveBase64Data } = await import('@apps-in-toss/web-framework');
-    await saveBase64Data({ data: base64, fileName: `하찮첼-${result.reward.id}.png`, mimeType: 'image/png' });
+    await saveBase64Data({ data: base64, fileName: `하찮냥-${result.reward.id}.png`, mimeType: 'image/png' });
   } catch {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = `하찮첼-${result.reward.id}.png`;
+    anchor.download = `하찮냥-${result.reward.id}.png`;
     anchor.click();
     URL.revokeObjectURL(url);
   }
 }
 
 export async function shareChallenge(result: GameResult) {
-  const message = `나는 이 고양이를 ${result.attempts}번 만에 잡았어.\n너는 이것보다 느릴 듯 😼`;
+  const message = `나는 이 하찮냥을 정확도 ${result.accuracy}%, ${(result.elapsedMs / 1000).toFixed(1)}초 만에 잡았어.\n너는 이것보다 느릴 듯 😼`;
   try {
     const { getTossShareLink, share } = await import('@apps-in-toss/web-framework');
     const link = await getTossShareLink('intoss://hachan-cat');
     await share({ message: `${message}\n${link}` });
   } catch {
     if (navigator.share) {
-      await navigator.share({ title: '하찮첼', text: message, url: window.location.href });
+      await navigator.share({ title: '하찮냥', text: message, url: window.location.href });
     } else {
       await navigator.clipboard.writeText(`${message}\n${window.location.href}`);
     }

@@ -85,16 +85,36 @@ button:focus-visible { outline: 4px solid #3b82f6; outline-offset: 3px; }
 .tiny-caption { text-align: center; font-size: 11px; color: #91897f; margin: 15px 0 0; }
 
 .game-screen { height: calc(100dvh - 64px); display: flex; flex-direction: column; }
-.game-hud { height: 70px; padding: 4px 24px 8px; display: flex; align-items: center; justify-content: space-between; }
-.game-hud div { display: flex; align-items: baseline; gap: 8px; }
-.game-hud span, .game-hud p { color: #867e74; font-size: 13px; }
+.game-hud { height: 76px; padding: 4px 24px 8px; display: flex; align-items: center; justify-content: space-between; }
+.attempt-counter { display: flex; align-items: baseline; gap: 8px; }
+.game-hud span { color: #867e74; font-size: 12px; }
 .game-hud strong { font: 700 30px/1 'Gaegu', cursive; }
-.game-hud p { margin: 0; }
-.game-field { flex: 1; min-height: 0; position: relative; overflow: hidden; touch-action: manipulation; background: radial-gradient(circle at center, rgba(255,217,90,.18), transparent 55%); }
-.cat-target { position: absolute; width: 142px; height: 208px; padding: 0; background: none; border: 0; cursor: pointer; transition: left .2s cubic-bezier(.2,.9,.3,1), top .2s cubic-bezier(.2,.9,.3,1), transform .2s; z-index: 5; -webkit-tap-highlight-color: transparent; }
+.round-status { width: 132px; }
+.round-status > div:first-child { display: flex; justify-content: space-between; align-items: baseline; }
+.round-status strong { font-size: 19px; }
+.fatigue-track { width: 100%; height: 7px; margin-top: 6px; overflow: hidden; border: 1.5px solid var(--ink); border-radius: 99px; background: #fff; }
+.fatigue-track i { display: block; height: 100%; background: var(--yellow); transition: width .12s linear; }
+.is-overtime .fatigue-track i { background: var(--coral); animation: overtimePulse .55s ease-in-out infinite alternate; }
+.game-field { flex: 1; min-height: 0; position: relative; overflow: hidden; touch-action: none; user-select: none; cursor: crosshair; background: radial-gradient(circle at center, rgba(255,217,90,.18), transparent 55%); }
+.game-field.is-aiming { background: radial-gradient(circle at center, rgba(255,103,87,.1), transparent 60%); }
+.cat-target { position: absolute; width: 142px; height: 208px; padding: 0; pointer-events: none; transition: left .48s cubic-bezier(.2,.72,.3,1), top .48s cubic-bezier(.2,.72,.3,1), transform .48s; z-index: 5; }
 .cat-target .cat-character { width: 100%; }
+.cat-target.is-tired { transition-duration: .9s; filter: saturate(.8); }
+.cat-target.is-tired::after { content: '헥'; position: absolute; right: -5px; top: 45px; color: #8c8479; font: 700 17px 'Gaegu', cursive; animation: tiredPuff .8s ease-out infinite; }
 .taunt-bubble { width: max-content; max-width: 210px; translate: -50% 0; z-index: 7; animation: tauntPop .3s cubic-bezier(.2,1.5,.5,1) both; pointer-events: none; }
 @keyframes tauntPop { from { opacity: 0; scale: .65; translate: -50% 10px; } }
+.catch-reticle { position: absolute; width: 112px; height: 112px; translate: -50% -50%; border: 4px dashed var(--coral); border-radius: 50%; z-index: 10; pointer-events: none; animation: reticleLock .42s ease-in-out infinite alternate; box-shadow: 0 0 0 999px rgba(32,33,36,.035); }
+.catch-reticle::before, .catch-reticle::after { content: ''; position: absolute; background: var(--ink); }
+.catch-reticle::before { left: 50%; top: -12px; width: 2px; height: 132px; }
+.catch-reticle::after { top: 50%; left: -12px; width: 132px; height: 2px; }
+.catch-reticle span { position: absolute; left: 50%; bottom: -29px; translate: -50% 0; padding: 3px 9px; border-radius: 99px; background: var(--ink); color: #fff; font: 700 13px 'Gaegu', cursive; white-space: nowrap; }
+.catch-reticle.is-wide { width: 142px; height: 142px; border-color: var(--yellow); }
+.catch-feedback { position: absolute; left: 50%; top: 48%; translate: -50% -50%; z-index: 15; color: var(--ink); font: 700 31px 'Gaegu', cursive; text-shadow: 2px 2px 0 #fff, -2px -2px 0 #fff; pointer-events: none; animation: feedbackPop .55s ease-out both; }
+.catch-feedback.is-near { color: var(--coral); }
+@keyframes reticleLock { to { scale: .92; rotate: 4deg; } }
+@keyframes feedbackPop { from { opacity: 0; scale: .65; } 30% { opacity: 1; scale: 1.14; } to { opacity: 0; translate: -50% -78%; } }
+@keyframes tiredPuff { to { opacity: 0; translate: 15px -10px; } }
+@keyframes overtimePulse { to { opacity: .55; } }
 .field-dots i { position: absolute; width: 9px; height: 9px; border: 2px solid #cfc6b7; border-radius: 50%; }
 .field-dots i:nth-child(1) { left: 12%; top: 16%; }.field-dots i:nth-child(2) { right: 12%; top: 31%; }.field-dots i:nth-child(3) { left: 21%; bottom: 15%; }.field-dots i:nth-child(4) { right: 20%; bottom: 12%; }
 .game-tip { margin: 0; padding: 12px 20px calc(18px + env(safe-area-inset-bottom)); color: #8c8479; text-align: center; font-size: 12px; }
@@ -114,10 +134,10 @@ button:focus-visible { outline: 4px solid #3b82f6; outline-offset: 3px; }
 .reward-card__eyebrow { margin: 5px 0 2px; text-align: center; color: var(--coral); font-size: 12px; font-weight: 800; }
 .reward-card h2 { margin: 0; text-align: center; font-size: 27px; letter-spacing: -1.5px; }
 .reward-card__description { min-height: 36px; margin: 7px auto 13px; text-align: center; color: #766f66; font-size: 11px; line-height: 1.55; max-width: 270px; }
-.score-row { display: grid; grid-template-columns: 1fr 1fr; background: #f8f5ef; border-radius: 15px; padding: 10px; }
+.score-row { display: grid; grid-template-columns: repeat(3, 1fr); background: #f8f5ef; border-radius: 15px; padding: 10px 4px; }
 .score-row div { display: flex; flex-direction: column; align-items: center; }
 .score-row div + div { border-left: 1px solid #ddd7cd; }
-.score-row strong { font-size: 18px; }.score-row span { color: #8b8379; font-size: 9px; margin-top: 2px; }
+.score-row strong { font-size: 17px; }.score-row span { color: #8b8379; font-size: 8px; margin-top: 2px; }
 .reward-card blockquote { margin: 12px 0 3px; text-align: center; font: 700 16px 'Gaegu', cursive; }
 .reward-card footer { color: #9d958c; text-align: center; font-size: 8px; letter-spacing: .5px; }
 .result-actions { display: grid; gap: 11px; margin-top: 22px; }
