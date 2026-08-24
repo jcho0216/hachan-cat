@@ -2,7 +2,7 @@ export type CatReward = {
   id: string;
   name: string;
   description: string;
-  rarity: '흔함' | '쓸데없이 희귀' | '전설인 척함';
+  rarity: '흔한 척' | '제법 희귀' | '전설이라고 함';
   color: string;
   accent: string;
   face: 'smug' | 'tired' | 'blank' | 'grumpy' | 'proud' | 'sleepy';

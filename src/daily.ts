@@ -17,7 +17,7 @@ export function hashSeed(value: string) {
 export function getDailyChallenge(date = todayInKorea()) {
   const seed = hashSeed(`하찮냥:${date}`);
   const level = LEVELS[4 + seed % 6];
-  return { date, seed, level, label: `${date.slice(5).replace('-', '.')} 오늘의 냥이` };
+  return { date, seed, level, label: `오늘의 한 판 · ${date.slice(5).replace('-', '.')}` };
 }
 
 export function calculateDailyScore(elapsedMs: number, attempts: number, nearMisses: number) {

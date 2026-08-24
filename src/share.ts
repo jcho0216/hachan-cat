@@ -20,14 +20,14 @@ async function svgToPng(svg: string): Promise<{ base64: string; blob: Blob }> {
 
 export async function createMemePng(result: GameResult): Promise<{ base64: string; blob: Blob }> {
   const level = getLevel(result.level);
-  const title = escapeXml(`Lv.${result.level} ${result.levelName} · ${result.reward.name} 포획`);
+  const title = escapeXml(`Lv.${result.level} ${result.levelName} · ${result.reward.name} 획득`);
   const verdict = escapeXml(result.verdict);
   const description = escapeXml(result.reward.description);
   const svg = `
   <svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350">
     <rect width="1080" height="1350" rx="72" fill="#FFF8E7"/>
     <circle cx="540" cy="490" r="270" fill="${level.accent}"/>
-    <text x="80" y="120" font-family="Arial,sans-serif" font-size="42" font-weight="700" fill="#202124">오늘의 포획 기록</text>
+    <text x="80" y="120" font-family="Arial,sans-serif" font-size="42" font-weight="700" fill="#202124">오늘의 잡기 기록</text>
     <text x="1000" y="120" text-anchor="end" font-family="Arial,sans-serif" font-size="30" fill="#6B645C">하찮냥</text>
     <g transform="translate(310 220) scale(3.05)">
       <path d="M31 54 24 14l35 19c10-4 22-4 32 0l35-19-7 41c8 9 12 21 12 34 0 35-25 57-56 57S19 124 19 89c0-14 4-26 12-35Z" fill="${level.fur}" stroke="#202124" stroke-width="5" stroke-linejoin="round"/>
@@ -42,9 +42,9 @@ export async function createMemePng(result: GameResult): Promise<{ base64: strin
     <text x="540" y="990" text-anchor="middle" font-family="Arial,sans-serif" font-size="28" fill="#6B645C">${description}</text>
     <rect x="110" y="1050" width="860" height="150" rx="36" fill="#FFFFFF"/>
     <text x="320" y="1115" text-anchor="middle" font-family="Arial,sans-serif" font-size="54" font-weight="900" fill="#202124">${result.grade}</text>
-    <text x="320" y="1160" text-anchor="middle" font-family="Arial,sans-serif" font-size="24" fill="#6B645C">손가락 등급</text>
+    <text x="320" y="1160" text-anchor="middle" font-family="Arial,sans-serif" font-size="24" fill="#6B645C">플레이 등급</text>
     <text x="760" y="1115" text-anchor="middle" font-family="Arial,sans-serif" font-size="48" font-weight="900" fill="#202124">${(result.elapsedMs / 1000).toFixed(1)}초</text>
-    <text x="760" y="1160" text-anchor="middle" font-family="Arial,sans-serif" font-size="24" fill="#6B645C">집착한 시간</text>
+    <text x="760" y="1160" text-anchor="middle" font-family="Arial,sans-serif" font-size="24" fill="#6B645C">걸린 시간</text>
     <text x="540" y="1280" text-anchor="middle" font-family="Arial,sans-serif" font-size="31" font-weight="700" fill="#202124">“${verdict}”</text>
   </svg>`;
 
@@ -71,14 +71,14 @@ export async function createLossMemePng(loss: GameLoss): Promise<{ base64: strin
       <path d="M64 108q12 14 25 0" fill="none" stroke="#202124" stroke-width="4" stroke-linecap="round"/>
       <g fill="none" stroke="#202124" stroke-width="6" stroke-linecap="round"><path d="M75 145q-10 26 0 42"/><path d="M70 157 42 176M79 157l29 16M75 186l-23 22M75 186l25 22"/></g>
     </g>
-    <text x="540" y="850" text-anchor="middle" font-family="Arial,sans-serif" font-size="38" font-weight="700" fill="#F45D4C">Lv.${loss.level} ${escapeXml(loss.levelName)}에게 패배</text>
+    <text x="540" y="850" text-anchor="middle" font-family="Arial,sans-serif" font-size="38" font-weight="700" fill="#F45D4C">Lv.${loss.level} ${escapeXml(loss.levelName)} 놓침</text>
     <text x="540" y="945" text-anchor="middle" font-family="Arial,sans-serif" font-size="76" font-weight="900" fill="#202124">${headline}</text>
     <text x="540" y="1010" text-anchor="middle" font-family="Arial,sans-serif" font-size="28" fill="#6B645C">${description}</text>
     <rect x="110" y="1065" width="860" height="140" rx="36" fill="#FFFFFF"/>
     <text x="320" y="1130" text-anchor="middle" font-family="Arial,sans-serif" font-size="50" font-weight="900" fill="#202124">${loss.attempts}회</text>
-    <text x="320" y="1170" text-anchor="middle" font-family="Arial,sans-serif" font-size="22" fill="#6B645C">덮치기</text>
+    <text x="320" y="1170" text-anchor="middle" font-family="Arial,sans-serif" font-size="22" fill="#6B645C">시도</text>
     <text x="760" y="1130" text-anchor="middle" font-family="Arial,sans-serif" font-size="50" font-weight="900" fill="#202124">${(loss.elapsedMs / 1000).toFixed(1)}초</text>
-    <text x="760" y="1170" text-anchor="middle" font-family="Arial,sans-serif" font-size="22" fill="#6B645C">버틴 시간</text>
+    <text x="760" y="1170" text-anchor="middle" font-family="Arial,sans-serif" font-size="22" fill="#6B645C">플레이 시간</text>
     <text x="540" y="1280" text-anchor="middle" font-family="Arial,sans-serif" font-size="31" font-weight="700" fill="#202124">“${quote}”</text>
   </svg>`;
   return svgToPng(svg);
@@ -115,7 +115,7 @@ export async function saveLossMemeCard(loss: GameLoss) {
 }
 
 export async function shareChallenge(result: GameResult) {
-  const message = `Lv.${result.level} ${result.levelName}을 정확도 ${result.accuracy}%, ${(result.elapsedMs / 1000).toFixed(1)}초 만에 잡았어.\n너는 이것보다 느릴 듯 😼`;
+  const message = `Lv.${result.level} ${result.levelName}, ${(result.elapsedMs / 1000).toFixed(1)}초 만에 잡음.\n이 기록 넘을 수 있겠어? 😼`;
   try {
     const { getTossShareLink, share } = await import('@apps-in-toss/web-framework');
     const link = await getTossShareLink('intoss://hachan-cat');
@@ -130,14 +130,14 @@ export async function shareChallenge(result: GameResult) {
 }
 
 export async function shareLossChallenge(loss: GameLoss) {
-  const detail = loss.reason === 'time' ? '15초를 버티고도' : '기회 5회를 다 쓰고';
-  const message = `Lv.${loss.level} ${loss.levelName}에게 ${detail} 털렸어.\n너는 잡을 수 있겠냐 😿`;
+  const detail = loss.reason === 'time' ? '15초 동안 못 잡았어' : '기회 5번을 다 놓쳤어';
+  const message = `Lv.${loss.level} ${loss.levelName}, 나는 ${detail}.\n너는 잡을 수 있겠어? 😿`;
   try {
     const { getTossShareLink, share } = await import('@apps-in-toss/web-framework');
     const link = await getTossShareLink('intoss://hachan-cat');
     await share({ message: `${message}\n${link}` });
   } catch {
-    if (navigator.share) await navigator.share({ title: '하찮냥 패배 기록', text: message, url: window.location.href });
+    if (navigator.share) await navigator.share({ title: '하찮냥 놓친 기록', text: message, url: window.location.href });
     else await navigator.clipboard.writeText(`${message}\n${window.location.href}`);
   }
 }

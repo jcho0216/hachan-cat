@@ -9,17 +9,18 @@ type Props = {
   fur?: string;
   accent?: string;
   evil?: number;
+  attention?: 'idle' | 'watch' | 'danger';
 };
 
 export const CatCharacter = forwardRef<SVGRectElement, Props>(function CatCharacter(
-  { caught = false, reward, pose = 'wiggle', fur, accent: accentProp, evil = 0 }, headRef,
+  { caught = false, reward, pose = 'wiggle', fur, accent: accentProp, evil = 0, attention = 'idle' }, headRef,
 ) {
   const color = fur ?? reward?.color ?? '#FFE0A8';
   const accent = accentProp ?? reward?.accent ?? '#FF8D6B';
   const face = reward?.face ?? (evil >= 6 ? 'grumpy' : evil >= 3 ? 'smug' : 'blank');
 
   return (
-    <div className={`cat-character pose-${pose} evil-${Math.min(10, evil)} ${caught ? 'is-caught' : ''}`} aria-hidden="true">
+    <div className={`cat-character pose-${pose} evil-${Math.min(10, evil)} attention-${attention} ${caught ? 'is-caught' : ''}`} aria-hidden="true">
       <svg className="cat-svg" viewBox="0 0 150 215" role="img" aria-label="요리조리 피하는 졸라맨 고양이">
         <g className="cat-rig">
         <g className="upper-rig">
@@ -31,7 +32,7 @@ export const CatCharacter = forwardRef<SVGRectElement, Props>(function CatCharac
           {face === 'tired' || face === 'sleepy' ? (
             <><path d="M42 78q12 10 23 0" fill="none" stroke="#202124" strokeWidth="6" strokeLinecap="round" /><path d="M87 78q12 10 23 0" fill="none" stroke="#202124" strokeWidth="6" strokeLinecap="round" /></>
           ) : face === 'blank' || face === 'proud' ? (
-            <><circle className="eye-left" cx="54" cy="81" r={evil >= 4 ? 6 : 5} fill="#202124" /><circle className="eye-right" cx="98" cy="81" r={evil >= 4 ? 6 : 5} fill="#202124" /></>
+            <><circle className="eye-left" cx="54" cy="81" r={evil >= 4 ? 6 : 5} fill="#202124" /><circle className="eye-right" cx="98" cy="81" r={evil >= 4 ? 6 : 5} fill="#202124" /><circle className="eye-glint eye-glint-left" cx="56" cy="79" r="1.7" fill="#fff" /><circle className="eye-glint eye-glint-right" cx="100" cy="79" r="1.7" fill="#fff" /></>
           ) : (
             <><path d={evil >= 5 ? 'M41 73q12 2 23 9' : 'M42 80q11-9 22 0'} fill="none" stroke="#202124" strokeWidth="6" strokeLinecap="round" /><path d={evil >= 5 ? 'M111 73q-12 2-23 9' : 'M88 80q11-9 22 0'} fill="none" stroke="#202124" strokeWidth="6" strokeLinecap="round" /></>
           )}
@@ -39,6 +40,7 @@ export const CatCharacter = forwardRef<SVGRectElement, Props>(function CatCharac
           <path d={face === 'grumpy' ? 'M63 113q13-9 26 0' : face === 'blank' ? 'M69 113h14' : 'M64 108q12 14 25 0'} fill="none" stroke="#202124" strokeWidth="5" strokeLinecap="round" />
           {evil >= 6 && <><path d="m66 109 4 9 4-8M83 110l4 8 4-10" fill="#fff" stroke="#202124" strokeWidth="2" /><path d="M31 64 61 72M120 64 91 72" stroke="#202124" strokeWidth="5" strokeLinecap="round" /></>}
           {evil >= 4 && <path d="m108 48-10 12 9 5-12 11" fill="none" stroke={accent} strokeWidth="4" strokeLinecap="round" />}
+          {attention !== 'idle' && <path className="focus-brows" d="M41 66 62 70M110 66 89 70" fill="none" stroke="#202124" strokeWidth="4" strokeLinecap="round" />}
           <path d="M28 96 4 91M28 106 5 111M123 96l23-5M123 106l22 5" stroke="#202124" strokeWidth="4" strokeLinecap="round" />
           </g>
           <rect ref={headRef} className="svg-head-anchor" x="19" y="14" width="112" height="132" rx="48" fill="transparent" />
@@ -58,6 +60,7 @@ export const CatCharacter = forwardRef<SVGRectElement, Props>(function CatCharac
       {!caught && <div className="wiggle-lines"><span /><span /></div>}
       {!caught && ['taunt', 'butt'].includes(pose) && <span className="pose-mark">ㅋㅋ</span>}
       {!caught && ['paddle', 'windmill'].includes(pose) && <span className="pose-mark">삭삭</span>}
+      {!caught && attention === 'danger' && <span className="danger-mark">!</span>}
       {!caught && evil >= 8 && <span className="evil-aura">✦</span>}
     </div>
   );
