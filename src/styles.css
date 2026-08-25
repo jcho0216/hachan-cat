@@ -121,6 +121,7 @@ button:focus-visible { outline: 4px solid #3b82f6; outline-offset: 3px; }
 .tiny-caption { text-align: center; font-size: 11px; color: #91897f; margin: 15px 0 0; }
 .daily-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 12px; padding: 10px 12px; border: 2px solid var(--ink); border-radius: 17px; background: linear-gradient(135deg,#fff,#fff2be); box-shadow: 0 3px 0 var(--ink); }
 .daily-card div { min-width: 0; }.daily-card span { display: block; color: var(--coral); font-size: 9px; font-weight: 900; }.daily-card strong { display: block; margin-top: 2px; font-size: 14px; }.daily-card p { margin: 2px 0 0; color: #817970; font-size: 9px; }
+.daily-card small { display: block; margin-top: 3px; color: #5f584f; font-size: 8px; font-weight: 800; white-space: nowrap; }
 .daily-card button { flex: 0 0 auto; min-height: 36px; padding: 0 11px; border: 0; border-radius: 12px; background: var(--ink); color: #fff; font-size: 11px; font-weight: 900; cursor: pointer; }
 .challenge-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 12px; padding: 11px 12px; border: 3px solid var(--coral); border-radius: 17px; background: #fff; box-shadow: 0 4px 0 var(--coral); animation: challengeArrive .45s cubic-bezier(.2,1.4,.4,1) both; }
 .challenge-card div { min-width: 0; }.challenge-card span { display: block; color: var(--coral); font-size: 9px; font-weight: 900; }.challenge-card strong { display: block; margin-top: 2px; font-size: 14px; }.challenge-card p { margin: 2px 0 0; color: #817970; font-size: 9px; }
@@ -324,7 +325,7 @@ button:disabled { opacity: .6; cursor: wait; }
 @keyframes crownDrop { from { transform: translateY(-140px) rotate(-90deg); opacity: 0; } }
 @keyframes stampSlam { from { opacity: 0; scale: 2.2; } }
 @keyframes burstSpin { from { scale: .4; rotate: -35deg; opacity: 0; } }
-.daily-score { margin: 8px 0 0; color: #70685f; font-size: 11px; }.daily-score strong { color: var(--coral); font-size: 17px; }
+.daily-score { margin: 8px 0 0; color: #70685f; font-size: 11px; }.daily-score strong { color: var(--coral); font-size: 17px; }.daily-score small { display: block; margin-top: 3px; font-size: 9px; }
 .new-best-badge { display: inline-block; margin: 9px 0 0; padding: 5px 10px; border: 2px solid var(--ink); border-radius: 99px; background: var(--yellow); box-shadow: 2px 2px 0 var(--ink); font: 700 12px 'Gaegu',cursive; transform: rotate(-2deg); }
 .result-badges { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 7px; margin-top: 9px; }
 .result-badges p { margin: 0; }

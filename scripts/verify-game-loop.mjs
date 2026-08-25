@@ -8,6 +8,8 @@ import { getClosenessLabel } from '../src/lossCopy.ts';
 import { urgencySecondFor } from '../src/timing.ts';
 import { getGrade } from '../src/data.ts';
 import { averageHitAccuracy, getCatchMoment } from '../src/resultMoment.ts';
+import { getDailyStreak, getWeeklyBest, recordDailyScore, sanitizeDailyHistory, weekStart } from '../src/dailyProgress.ts';
+import { normalizeLeaderboardScore } from '../src/gameCenter.ts';
 
 const result = { level: 7, elapsedMs: 3240, attempts: 2, accuracy: 91, grade: 'A', levelName: '깜빡냥', nearMisses: 1, verdict: '', reward: {}, mode: 'challenge' };
 const catchLink = createCatchChallengeDeepLink(result);
@@ -49,5 +51,17 @@ assert.equal(getGrade(96, 5000, 4, 4)[0], 'S+', '필수 보스 명중은 등급�
 assert.notEqual(getGrade(96, 5000, 4, 1)[0], 'S+', '일반 고양이의 추가 시도는 등급에 반영되어야 합니다.');
 assert.equal(getCatchMoment({ elapsedMs: 5000, attempts: 4, accuracy: 94, nearMisses: 0, misses: 0 }, 4).label, '왕관 퍼펙트');
 assert.equal(getCatchMoment({ elapsedMs: 14_200, attempts: 3, accuracy: 80, nearMisses: 1, misses: 2 }, 1).label, '0초대 역전');
+const dailyHistory = [
+  { date: '2026-08-24', score: 81_000, elapsedMs: 7000, attempts: 2, level: 5 },
+  { date: '2026-08-25', score: 84_000, elapsedMs: 6200, attempts: 2, level: 6 },
+];
+assert.equal(weekStart('2026-08-25'), '2026-08-24', '주간 기록은 월요일부터 시작해야 합니다.');
+assert.equal(getDailyStreak(dailyHistory, '2026-08-26'), 2, '오늘 플레이 전에는 어제까지의 연속 기록을 유지해야 합니다.');
+assert.equal(getDailyStreak(dailyHistory, '2026-08-27'), 0, '하루를 건너뛰면 연속 기록이 끝나야 합니다.');
+assert.equal(getWeeklyBest(dailyHistory, '2026-08-25')?.score, 84_000, '이번 주 개인 최고 점수를 찾아야 합니다.');
+assert.equal(recordDailyScore(dailyHistory, { ...dailyHistory[1], score: 80_000 }).find((entry) => entry.date === '2026-08-25')?.score, 84_000, '같은 날 낮은 점수로 최고 기록을 덮으면 안 됩니다.');
+assert.deepEqual(sanitizeDailyHistory([{ nope: true }]), [], '깨진 주간 기록은 안전하게 무시해야 합니다.');
+assert.equal(normalizeLeaderboardScore(Number.POSITIVE_INFINITY), 0, '유효하지 않은 점수는 제출하면 안 됩니다.');
+assert.equal(normalizeLeaderboardScore(120_000), 100_000, '리더보드 점수는 계산 가능한 최대값을 넘으면 안 됩니다.');
 
 console.log('✓ challenge links, fair scoring, records, and tension feedback verified');
