@@ -1,0 +1,36 @@
+/* Gaegu is bundled so the first game screen never waits for Google Fonts. */
+@font-face {
+  font-family: 'Gaegu';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url('@fontsource/gaegu/files/gaegu-korean-400-normal.woff2') format('woff2');
+  unicode-range: U+1100-11ff, U+3130-318f, U+ac00-d7a3, U+a960-a97f, U+d7b0-d7ff;
+}
+
+@font-face {
+  font-family: 'Gaegu';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url('@fontsource/gaegu/files/gaegu-latin-400-normal.woff2') format('woff2');
+  unicode-range: U+0000-024f;
+}
+
+@font-face {
+  font-family: 'Gaegu';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700 900;
+  src: url('@fontsource/gaegu/files/gaegu-korean-700-normal.woff2') format('woff2');
+  unicode-range: U+1100-11ff, U+3130-318f, U+ac00-d7a3, U+a960-a97f, U+d7b0-d7ff;
+}
+
+@font-face {
+  font-family: 'Gaegu';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700 900;
+  src: url('@fontsource/gaegu/files/gaegu-latin-700-normal.woff2') format('woff2');
+  unicode-range: U+0000-024f;
+}

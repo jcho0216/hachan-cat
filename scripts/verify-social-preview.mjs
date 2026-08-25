@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 const png = await readFile(new URL('../public/og-thumbnail.png', import.meta.url));
 const shareSource = await readFile(new URL('../src/share.ts', import.meta.url), 'utf8');
+const viteConfig = await readFile(new URL('../vite.config.ts', import.meta.url), 'utf8');
 
 assert.equal(png.toString('ascii', 1, 4), 'PNG', '공유 썸네일은 PNG 파일이어야 합니다.');
 assert.equal(png.readUInt32BE(16), 1200, '공유 썸네일 너비는 1200px이어야 합니다.');
@@ -21,6 +22,9 @@ for (const marker of [
 }
 
 assert.ok(html.includes('/og-thumbnail.png?v=2'), '카카오 이미지 캐시를 갱신할 버전 URL이 필요합니다.');
+assert.ok(!html.includes('fonts.googleapis.com') && !html.includes('fonts.gstatic.com'), '첫 화면 폰트는 외부 Google 요청에 의존하면 안 됩니다.');
+assert.ok(viteConfig.includes("'https://hachan-cat.vercel.app'"), '로컬·앱 패키지의 메타데이터 기본 주소는 운영 도메인이어야 합니다.');
+assert.ok(!viteConfig.includes('hachan-jinxeifk1-junjoys-projects.vercel.app'), '과거 미리보기 도메인을 메타데이터 기본값으로 남기면 안 됩니다.');
 assert.ok(shareSource.includes('getTossShareLink(createCatchChallengeDeepLink(result), SHARE_PREVIEW_IMAGE_URL)'), '승리 공유 링크에 기록과 OG 이미지를 전달해야 합니다.');
 assert.ok(shareSource.includes('getTossShareLink(createLossChallengeDeepLink(loss), SHARE_PREVIEW_IMAGE_URL)'), '패배 공유 링크에 복수 대상과 OG 이미지를 전달해야 합니다.');
 assert.ok(shareSource.includes("https://hachan-cat.vercel.app/og-thumbnail.png?v=2"), '토스 공유 이미지는 HTTPS 절대 URL이어야 합니다.');

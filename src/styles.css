@@ -1,5 +1,5 @@
 :root {
-  font-family: 'Noto Sans KR', system-ui, sans-serif;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
   color: #202124;
   background: #fff8e7;
   font-synthesis: none;
@@ -216,7 +216,7 @@ button:focus-visible { outline: 4px solid #3b82f6; outline-offset: 3px; }
 .confetti i { color: #4ec59a; }.confetti b { color: #f0b429; }.confetti em { color: #7297ef; }
 .reward-card { width: 100%; border: 3px solid var(--ink); border-radius: 28px; padding: 20px; background: #fff; box-shadow: 7px 8px 0 var(--ink); position: relative; }
 .reward-card__topline { display: flex; justify-content: space-between; align-items: center; font: 700 14px 'Gaegu', cursive; }
-.rarity-pill { padding: 5px 8px; border-radius: 99px; background: #f2eee7; font: 700 10px 'Noto Sans KR', sans-serif; }
+.rarity-pill { padding: 5px 8px; border-radius: 99px; background: #f2eee7; font: 700 10px system-ui, sans-serif; }
 .reward-card__character { height: 166px; display: grid; place-items: center; position: relative; overflow: hidden; }
 .reward-card__character .cat-character { width: 108px; margin-top: 20px; z-index: 1; }
 .reward-sun { position: absolute; width: 145px; height: 145px; border-radius: 50%; top: 14px; }
@@ -335,7 +335,7 @@ button:disabled { opacity: .6; cursor: wait; }
 @keyframes toastIn { from { opacity: 0; translate: -50% 8px; } }
 
 .loss-screen { height: calc(100dvh - var(--header-height)); padding: 10px 22px calc(28px + env(safe-area-inset-bottom)); overflow-y: auto; text-align: center; }
-.loss-stamp { padding: 6px 13px; border: 3px solid var(--coral); color: var(--coral); font: 900 15px/1 'Noto Sans KR',sans-serif; letter-spacing: 2px; transform: rotate(-5deg); }
+.loss-stamp { padding: 6px 13px; border: 3px solid var(--coral); color: var(--coral); font: 900 15px/1 system-ui,sans-serif; letter-spacing: 2px; transform: rotate(-5deg); }
 .loss-heading { margin: 10px 0 16px; }.loss-heading h1 { margin: 14px 0 2px; font-size: 27px; letter-spacing: -1.5px; }.loss-heading p { margin: 0; color: #746d64; font-size: 12px; }
 .loss-card { box-shadow: 7px 8px 0 #B92235; }.loss-card .loss-pill { background: #B92235; color: #fff; }.loss-card .loss-sun { opacity: .72; }.loss-card blockquote { color: var(--coral); }
 .loss-actions { display: grid; gap: 10px; margin-top: 22px; }.loss-actions .text-button + .text-button { margin-top: -8px; }

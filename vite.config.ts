@@ -7,7 +7,7 @@ export default defineConfig(({ mode }) => {
     || env.VERCEL_PROJECT_PRODUCTION_URL
     || env.VITE_VERCEL_URL
     || env.VERCEL_URL;
-  const siteUrl = (env.VITE_PUBLIC_SITE_URL || (productionHost ? `https://${productionHost}` : 'https://hachan-jinxeifk1-junjoys-projects.vercel.app')).replace(/\/$/, '');
+  const siteUrl = (env.VITE_PUBLIC_SITE_URL || (productionHost ? `https://${productionHost}` : 'https://hachan-cat.vercel.app')).replace(/\/$/, '');
 
   return {
     plugins: [
