@@ -175,9 +175,15 @@ function App() {
     const handleVisibility = () => {
       if (document.hidden) {
         hiddenAtRef.current = Date.now();
+        const wasPractice = practiceAttemptRef.current;
+        practiceAttemptRef.current = false;
+        aimRef.current = null;
+        reactedToAimRef.current = false;
+        setAim(null); setAttention('idle');
+        if (wasPractice && screen === 'game') setShowGameGuide(true);
         pauseAudio();
-      } else if (hiddenAtRef.current && screen === 'game') {
-        startedAt.current += Date.now() - hiddenAtRef.current;
+      } else if (hiddenAtRef.current) {
+        if (screen === 'game') startedAt.current += Date.now() - hiddenAtRef.current;
         hiddenAtRef.current = null;
       }
     };
@@ -492,7 +498,7 @@ function App() {
 
   return (
     <main className="app-shell">
-      <header className="app-header"><button className="wordmark" onClick={() => setScreen('home')} aria-label="홈으로">하찮냥<span>˙</span></button><div className="header-actions"><button className="sound-toggle" onClick={() => setSoundEnabled((value) => !value)} aria-label={soundEnabled ? '소리 끄기' : '소리 켜기'}>{soundEnabled ? '♪' : '×'}</button><button className="collection-link" onClick={() => setScreen('collection')}>도감 <strong>{collectionCount}</strong></button></div></header>
+      <header className="app-header"><button className="wordmark" onClick={() => setScreen('home')} aria-label="홈으로">하찮냥<span>˙</span></button><div className="header-actions"><button className="sound-toggle" onClick={() => setSoundEnabled((value) => !value)} aria-label={soundEnabled ? '소리 끄기' : '소리 켜기'} aria-pressed={soundEnabled}>{soundEnabled ? '♪' : '×'}</button><button className="collection-link" onClick={() => setScreen('collection')} aria-label={`도감, 잡은 고양이 ${collectionCount}마리`}>도감 <strong>{collectionCount}</strong></button></div></header>
 
       {screen === 'home' && <section className="home-screen page-enter">
         <div className="home-copy"><span className="kicker">{incomingChallenge ? incomingChallenge.source === 'loss' ? '친구가 복수를 부탁함' : '피할 수 없는 기록 도착' : '잡으면 이기고, 놓치면 놀림받음'}</span><h1>{incomingChallenge ? <>친구 기록이,<br /><em>좀 건방지네?</em></> : <>이 고양이,<br /><em>한 번 잡아볼래?</em></>}</h1><p>{incomingChallenge ? '같은 고양이, 같은 규칙. 이번엔 당신 차례입니다.' : '꾹 누른 채 쫓아가세요. 머리에 닿았을 때 손을 떼면 성공.'}</p></div>
@@ -511,9 +517,9 @@ function App() {
         <div className="game-hud"><div className="attempt-counter"><span>Lv.{difficulty.id} {difficulty.name}</span><strong>시도 {attempts}회</strong></div>
           <div className="game-resources"><div className="chance-status"><span>기회 {difficulty.attemptsAllowed - misses}</span><div className="chance-lives" aria-label={`남은 기회 ${difficulty.attemptsAllowed - misses}`}>{Array.from({ length: difficulty.attemptsAllowed }, (_, index) => <i key={index} className={index < misses ? 'is-broken' : ''}>●</i>)}</div></div>
           {(difficulty.hitsRequired ?? 1) > 1 && <div className="boss-status"><span>명중 {bossHits}/{difficulty.hitsRequired}</span><div className="boss-lives" aria-label={`남은 명중 ${(difficulty.hitsRequired ?? 1) - bossHits}`}>{Array.from({ length: difficulty.hitsRequired ?? 1 }, (_, index) => <i key={index} className={index < bossHits ? 'is-broken' : ''}>♛</i>)}</div></div>}</div>
-          <div className="round-status"><div><span>남은 시간</span><strong>{(remainingMs / 1000).toFixed(1)}s</strong></div><div className="fatigue-track"><i style={{ width: `${timeProgress}%` }} /></div></div>
+          <div className="round-status"><div><span>남은 시간</span><strong>{(remainingMs / 1000).toFixed(1)}s</strong></div><div className="fatigue-track" role="progressbar" aria-label="남은 시간" aria-valuemin={0} aria-valuemax={15} aria-valuenow={Math.ceil(remainingMs / 1000)}><i style={{ width: `${timeProgress}%` }} /></div></div>
         </div>
-        <div ref={fieldRef} className={`game-field ${aim ? 'is-aiming' : ''} ${attention === 'danger' ? 'is-danger' : ''} ${result ? 'is-captured' : ''}`} onPointerDown={handleAimStart} onPointerMove={handleAimMove} onPointerUp={handleAimRelease} onPointerCancel={clearAim} aria-label="고양이 잡기 구역">
+        <div ref={fieldRef} className={`game-field ${aim ? 'is-aiming' : ''} ${attention === 'danger' ? 'is-danger' : ''} ${result ? 'is-captured' : ''}`} onPointerDown={handleAimStart} onPointerMove={handleAimMove} onPointerUp={handleAimRelease} onPointerCancel={clearAim} onLostPointerCapture={clearAim} aria-label="고양이 잡기 구역">
           <div key={`phase-${phaseKey}`} className="phase-badge"><span>{mode === 'daily' ? '오늘의 움직임' : mode === 'challenge' ? '친구가 본 움직임' : '지금은'}</span><strong>{BEHAVIOR_GUIDES[phaseBehavior].label}</strong><small>{BEHAVIOR_GUIDES[phaseBehavior].hint}</small></div>
           <div key={`flash-${phaseKey}`} className="phase-flash" aria-hidden="true" />
           <div key={`taunt-${tauntKey}`} className="taunt-bubble" style={{ left: `${position.x}%`, top: `calc(${position.y}% - 134px)` }}>{taunt}</div>
@@ -523,7 +529,7 @@ function App() {
           </div>
           {aim && <div className={`catch-reticle ${attention === 'danger' ? 'is-danger' : ''} ${[difficulty.behavior, difficulty.secondaryBehavior].some((behavior) => ['blink', 'mirror', 'overlord'].includes(behavior)) ? 'is-warped' : ''}`} style={{ left: aim.x, top: aim.y }}><span>{attention === 'danger' ? '지금 떼면 잡는다' : '머리까지 쫓기'}</span></div>}
           {dodgeFx && <div key={`dodge-${dodgeFx.key}`} className="dodge-fx" style={{ left: `${dodgeFx.x}%`, top: `${dodgeFx.y}%` }}><i /><i /><strong>{dodgeFx.label}</strong></div>}
-          {feedback && <div key={`feedback-${feedback.key}`} className={`catch-feedback ${feedback.near ? 'is-near' : ''}`}>{feedback.text}</div>}
+          {feedback && <div key={`feedback-${feedback.key}`} className={`catch-feedback ${feedback.near ? 'is-near' : ''}`} role="status" aria-live="polite">{feedback.text}</div>}
           {showGameGuide && <div className="gesture-coach" aria-label="첫 플레이 안내"><span>☝</span><strong>여기부터 꾹 누른 채<br />고양이 머리를 쫓아가세요</strong><small>첫 실패는 시간·기회 차감 없음</small></div>}
           <div className="field-dots" aria-hidden="true"><i /><i /><i /><i /></div>
         </div><p className={`game-tip ${(difficulty.hitsRequired ?? 1) > 1 ? 'is-boss-tip' : ''}`}>{(difficulty.hitsRequired ?? 1) > 1 ? `보스전 · 머리를 ${difficulty.hitsRequired}번 잡아야 승리 · 빗나가면 기회 차감` : '꾹 누르고 쫓다가 머리에서 떼기 · 놓치면 기회 1개 차감'}</p>
