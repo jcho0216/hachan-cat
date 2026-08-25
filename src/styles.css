@@ -140,14 +140,17 @@ button:focus-visible { outline: 4px solid #3b82f6; outline-offset: 3px; }
 .level-card.is-selected::after { content: '선택됨'; position: absolute; right: 8px; top: 8px; color: var(--coral); font: 700 12px 'Gaegu',cursive; }.level-card.is-locked { border-color: #c6c0b6; background: #ece9e3; box-shadow: 3px 4px 0 #c6c0b6; color: #918b82; cursor: not-allowed; }
 
 .game-screen { height: calc(100dvh - 64px); display: flex; flex-direction: column; }
-.game-hud { height: 76px; padding: 4px 24px 8px; display: flex; align-items: center; justify-content: space-between; }
+.game-hud { min-height: 76px; padding: 4px 20px 8px; display: grid; grid-template-columns: minmax(82px,1fr) auto minmax(112px,1fr); align-items: center; gap: 12px; }
 .attempt-counter { display: flex; align-items: baseline; gap: 8px; }
 .attempt-counter { flex-direction: column; gap: 1px; }.attempt-counter strong { font-size: 24px; }
+.game-resources { display: flex; align-items: center; gap: 10px; }
+.chance-status, .boss-status { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.chance-status > span, .boss-status > span { color: #716960; font-size: 8px; font-weight: 900; white-space: nowrap; }
 .boss-lives { display: flex; gap: 3px; color: var(--coral); font-size: 16px; }.boss-lives i { font-style: normal; transition: .25s; }.boss-lives i.is-broken { opacity: .2; transform: rotate(25deg) translateY(3px); }
 .chance-lives { display: flex; gap: 4px; color: var(--coral); font-size: 9px; }.chance-lives i { font-style: normal; transition: .2s; }.chance-lives i.is-broken { opacity: .18; transform: scale(.55); }
 .game-hud span { color: #867e74; font-size: 12px; }
 .game-hud strong { font: 700 30px/1 'Gaegu', cursive; }
-.round-status { width: 132px; }
+.round-status { width: 100%; max-width: 132px; justify-self: end; }
 .round-status > div:first-child { display: flex; justify-content: space-between; align-items: baseline; }
 .round-status strong { font-size: 19px; }
 .fatigue-track { width: 100%; height: 7px; margin-top: 6px; overflow: hidden; border: 1.5px solid var(--ink); border-radius: 99px; background: #fff; }
@@ -197,6 +200,7 @@ button:focus-visible { outline: 4px solid #3b82f6; outline-offset: 3px; }
 .field-dots i { position: absolute; width: 9px; height: 9px; border: 2px solid #cfc6b7; border-radius: 50%; }
 .field-dots i:nth-child(1) { left: 12%; top: 16%; }.field-dots i:nth-child(2) { right: 12%; top: 31%; }.field-dots i:nth-child(3) { left: 21%; bottom: 15%; }.field-dots i:nth-child(4) { right: 20%; bottom: 12%; }
 .game-tip { margin: 0; padding: 12px 20px calc(18px + env(safe-area-inset-bottom)); color: #8c8479; text-align: center; font-size: 12px; }
+.game-tip.is-boss-tip { color: #a3333f; font-weight: 900; }
 
 .result-screen { padding: 8px 22px calc(28px + env(safe-area-inset-bottom)); position: relative; overflow-y: auto; max-height: calc(100dvh - 64px); }
 .result-heading { text-align: center; margin-bottom: 16px; }
@@ -335,6 +339,16 @@ button:disabled { opacity: .6; cursor: wait; }
   .floor-shadow { bottom: 12px; }
   .home-character-wrap { min-height: 155px; }
   .daily-card { padding-block: 7px; }
+}
+
+@media (max-width: 360px) {
+  .game-hud { padding-inline: 10px; grid-template-columns: minmax(70px,1fr) auto minmax(94px,1fr); gap: 6px; }
+  .attempt-counter strong { font-size: 20px; }
+  .game-resources { gap: 5px; }
+  .chance-lives { gap: 2px; font-size: 8px; }
+  .boss-lives { gap: 1px; font-size: 14px; }
+  .round-status strong { font-size: 17px; }
+  .game-tip { padding-inline: 10px; font-size: 10px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

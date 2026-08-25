@@ -100,6 +100,7 @@ function App() {
   const [showGameGuide, setShowGameGuide] = useState(false);
   const [levelBests, setLevelBests] = useState(readLevelBests);
   const [isNewBest, setIsNewBest] = useState(false);
+  const [bestMessage, setBestMessage] = useState('');
   const [incomingChallenge, setIncomingChallenge] = useState<ChallengeTarget | null>(() => parseChallengeTarget(window.location.search));
   const [activeChallenge, setActiveChallenge] = useState<ChallengeTarget | null>(null);
   const daily = useMemo(() => getDailyChallenge(), []);
@@ -212,7 +213,7 @@ function App() {
     setPhaseBehavior(getLevel(safeLevel).behavior); setPhaseKey((value) => value + 1);
     setTaunt('잡을 수 있으면.'); setTauntKey((value) => value + 1); setAim(null); setFeedback(null); setAttention('idle'); setDodgeFx(null);
     setShowGameGuide(nextMode === 'campaign' && localStorage.getItem(FIRST_PLAY_KEY) !== 'seen');
-    setRemainingMs(getLevel(safeLevel).roundMs); setResult(null); setLossResult(null); setIsNewBest(false); setScreen('game');
+    setRemainingMs(getLevel(safeLevel).roundMs); setResult(null); setLossResult(null); setIsNewBest(false); setBestMessage(''); setScreen('game');
     track('game_start', { level: safeLevel, mode: nextMode });
   }
 
@@ -330,7 +331,7 @@ function App() {
       const nextBossHits = bossHitsRef.current + 1;
       if (nextBossHits < requiredHits) {
         bossHitsRef.current = nextBossHits; setBossHits(nextBossHits); setPose('panic');
-        setFeedback({ key: Date.now(), text: `${nextBossHits}/${requiredHits} 명중`, near: true });
+        setFeedback({ key: Date.now(), text: `${nextBossHits}/${requiredHits} 명중 · ${requiredHits - nextBossHits}번 더!`, near: true });
         setTaunt(nextBossHits + 1 === requiredHits ? '어, 다음은 좀 위험한데.' : '아직 남았어.'); setTauntKey((value) => value + 1);
         moveCatAway(event.clientX, event.clientY);
         void haptic('tickMedium'); playSound('hit', soundEnabled);
@@ -342,8 +343,14 @@ function App() {
       const score = mode === 'daily' ? calculateDailyScore(elapsedMs, nextAttempts, difficulty.id, difficulty.hitsRequired ?? 1) : undefined;
       const nextResult: GameResult = { attempts: nextAttempts, elapsedMs, accuracy, nearMisses: nearMissesRef.current, level: difficulty.id, levelName: difficulty.name, grade, verdict, reward, mode, score };
       setResult(nextResult); setCollection((current) => [...current, reward.id]);
+      const previousBest = levelBests[difficulty.id];
       const recorded = recordLevelBest(levelBests, nextResult);
       setLevelBests(recorded.bests); setIsNewBest(recorded.isNewBest);
+      setBestMessage(recorded.isNewBest ? previousBest
+        ? previousBest.elapsedMs > elapsedMs
+          ? `이전보다 ${formatSeconds(previousBest.elapsedMs - elapsedMs)} 단축`
+          : previousBest.attempts > nextAttempts ? `같은 시간 · 시도 ${nextAttempts}회로 갱신` : `같은 시간 · 정확도 ${accuracy}%로 갱신`
+        : '첫 개인 기록 등록' : '');
       setCaughtLevels((current) => current.includes(difficulty.id) ? current : [...current, difficulty.id]);
       setUnlockedLevel((current) => nextUnlockedLevel(current, difficulty.id, mode, LEVELS.length));
       setFeedback({ key: Date.now(), text: `잡았다 · ${accuracy}%`, near: true });
@@ -451,8 +458,8 @@ function App() {
 
       {screen === 'game' && <section className={`game-screen page-enter behavior-${phaseBehavior} phase-${phaseKey % 2}`}>
         <div className="game-hud"><div className="attempt-counter"><span>Lv.{difficulty.id} {difficulty.name}</span><strong>시도 {attempts}회</strong></div>
-          <div className="chance-lives" aria-label={`남은 기회 ${difficulty.attemptsAllowed - misses}`}>{Array.from({ length: difficulty.attemptsAllowed }, (_, index) => <i key={index} className={index < misses ? 'is-broken' : ''}>●</i>)}</div>
-          {difficulty.hitsRequired && <div className="boss-lives" aria-label={`남은 체력 ${difficulty.hitsRequired - bossHits}`}>{Array.from({ length: difficulty.hitsRequired }, (_, index) => <i key={index} className={index < bossHits ? 'is-broken' : ''}>♛</i>)}</div>}
+          <div className="game-resources"><div className="chance-status"><span>기회 {difficulty.attemptsAllowed - misses}</span><div className="chance-lives" aria-label={`남은 기회 ${difficulty.attemptsAllowed - misses}`}>{Array.from({ length: difficulty.attemptsAllowed }, (_, index) => <i key={index} className={index < misses ? 'is-broken' : ''}>●</i>)}</div></div>
+          {(difficulty.hitsRequired ?? 1) > 1 && <div className="boss-status"><span>명중 {bossHits}/{difficulty.hitsRequired}</span><div className="boss-lives" aria-label={`남은 명중 ${(difficulty.hitsRequired ?? 1) - bossHits}`}>{Array.from({ length: difficulty.hitsRequired ?? 1 }, (_, index) => <i key={index} className={index < bossHits ? 'is-broken' : ''}>♛</i>)}</div></div>}</div>
           <div className="round-status"><div><span>남은 시간</span><strong>{(remainingMs / 1000).toFixed(1)}s</strong></div><div className="fatigue-track"><i style={{ width: `${timeProgress}%` }} /></div></div>
         </div>
         <div ref={fieldRef} className={`game-field ${aim ? 'is-aiming' : ''} ${attention === 'danger' ? 'is-danger' : ''} ${result ? 'is-captured' : ''}`} onPointerDown={handleAimStart} onPointerMove={handleAimMove} onPointerUp={handleAimRelease} onPointerCancel={clearAim} aria-label="고양이 잡기 구역">
@@ -468,7 +475,7 @@ function App() {
           {feedback && <div key={`feedback-${feedback.key}`} className={`catch-feedback ${feedback.near ? 'is-near' : ''}`}>{feedback.text}</div>}
           {showGameGuide && <div className="gesture-coach" aria-label="첫 플레이 안내"><span>☝</span><strong>여기부터 꾹 누른 채<br />고양이 머리를 쫓아가세요</strong><small>첫 실패는 시간·기회 차감 없음</small></div>}
           <div className="field-dots" aria-hidden="true"><i /><i /><i /><i /></div>
-        </div><p className="game-tip">꾹 누르고 쫓다가 머리에서 떼기 · 놓치면 기회 1개 차감</p>
+        </div><p className={`game-tip ${(difficulty.hitsRequired ?? 1) > 1 ? 'is-boss-tip' : ''}`}>{(difficulty.hitsRequired ?? 1) > 1 ? `보스전 · 머리를 ${difficulty.hitsRequired}번 잡아야 승리 · 빗나가면 기회 차감` : '꾹 누르고 쫓다가 머리에서 떼기 · 놓치면 기회 1개 차감'}</p>
       </section>}
 
       {screen === 'ending' && result && <section className="ending-screen page-enter">
@@ -485,7 +492,7 @@ function App() {
       </section>}
 
       {screen === 'result' && result && <section className="result-screen page-enter">
-        <div className="confetti" aria-hidden="true">✦ <i>●</i> ◆ <b>✦</b> <em>●</em></div><div className="result-heading"><span>{result.mode === 'daily' ? `${daily.label} 완료` : result.mode === 'challenge' ? '친구 기록 도전 완료' : `Lv.${result.level} ${result.levelName} 잡기 성공`}</span><h1>{resultChallengeDelta !== null ? resultChallengeDelta <= 0 ? <>기록 격파!<br />친구보다 {formatSeconds(Math.abs(resultChallengeDelta))} 빠름</> : <>잡긴 잡았는데…<br />친구보다 {formatSeconds(resultChallengeDelta)} 늦음</> : result.mode === 'challenge' ? <>복수 성공!<br />이제 친구에게 보고할 차례.</> : result.level === LEVELS.length ? '마왕도 결국 고양이였습니다.' : <>잡았다!<br />이번 판은 네가 이겼어.</>}</h1>{isNewBest && <p className="new-best-badge">개인 최고 기록 갱신</p>}{result.score !== undefined && <p className="daily-score"><strong>{result.score.toLocaleString()}점</strong> · 오늘 최고 {dailyBest?.score.toLocaleString()}점</p>}</div><RewardCard result={result} compact />
+        <div className="confetti" aria-hidden="true">✦ <i>●</i> ◆ <b>✦</b> <em>●</em></div><div className="result-heading"><span>{result.mode === 'daily' ? `${daily.label} 완료` : result.mode === 'challenge' ? '친구 기록 도전 완료' : `Lv.${result.level} ${result.levelName} 잡기 성공`}</span><h1>{resultChallengeDelta !== null ? resultChallengeDelta <= 0 ? <>기록 격파!<br />친구보다 {formatSeconds(Math.abs(resultChallengeDelta))} 빠름</> : <>잡긴 잡았는데…<br />친구보다 {formatSeconds(resultChallengeDelta)} 늦음</> : result.mode === 'challenge' ? <>복수 성공!<br />이제 친구에게 보고할 차례.</> : result.level === LEVELS.length ? '마왕도 결국 고양이였습니다.' : <>잡았다!<br />이번 판은 네가 이겼어.</>}</h1>{isNewBest && <p className="new-best-badge">{bestMessage}</p>}{result.score !== undefined && <p className="daily-score"><strong>{result.score.toLocaleString()}점</strong> · 오늘 최고 {dailyBest?.score.toLocaleString()}점</p>}</div><RewardCard result={result} compact />
         <div className="result-actions">{result.mode === 'campaign' && result.level < LEVELS.length && <button className="primary-button next-level-button" onClick={() => startGame(result.level + 1)}>다음 상대 · {getLevel(result.level + 1).name} <span>→</span></button>}{result.mode === 'daily' && <button className="primary-button" onClick={handleLeaderboard}>전체 랭킹 보기 <span>→</span></button>}<button className={result.mode === 'campaign' && result.level < LEVELS.length ? 'secondary-button' : 'primary-button'} onClick={handleShare} disabled={Boolean(busy)}>{busy === 'share' ? '공유창 여는 중…' : result.mode === 'challenge' ? '새 기록으로 도발하기' : '밈 카드로 자랑하기'}</button><div className="minor-actions"><button onClick={handleSave} disabled={Boolean(busy)}>{busy === 'save' ? '카드 만드는 중…' : '카드 저장'}</button><button onClick={() => startGame(result.level, result.mode ?? 'campaign')}>다시 잡기</button></div></div>
       </section>}
 
