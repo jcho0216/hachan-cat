@@ -19,6 +19,7 @@ import { LEVEL_BESTS_KEY, readLevelBests, recordLevelBest } from './records';
 import { nextUnlockedLevel } from './progress';
 import { distanceFromCatch, isCatchGesture } from './inputRules';
 import { urgencySecondFor } from './timing';
+import { BEHAVIOR_GUIDES, phaseStepsFor } from './behaviorGuide';
 
 type Screen = 'home' | 'levels' | 'game' | 'ending' | 'result' | 'loss' | 'collection';
 type Aim = MovementAim & { x: number; y: number; clientX: number; clientY: number; startedAt: number; traveledPx: number };
@@ -38,10 +39,6 @@ const SOUND_KEY = 'hachan-cat-sound-v1';
 const FIRST_PLAY_KEY = 'hachan-cat-first-play-v1';
 const REACTIVE_POSES: CatPose[] = ['paddle', 'paddle', 'peek', 'leap', 'matrix', 'crab', 'flatten', 'windmill', 'butt', 'taunt'];
 const DODGE_WORDS = ['슬쩍', '삭삭', '반대지', '급발진', '잔상!', '옆으로', '없지롱', '맘대로', '철벽', '어딜'];
-const BEHAVIOR_LABELS: Record<CatBehavior, string> = {
-  patrol: '천천히 순찰', watch: '손끝 관찰', dodge: '반사 회피', zigzag: '지그재그', moonwalk: '되감기', fake: '반대로', wall: '벽 타기', orbit: '원 그리기', tempo: '엇박자', clone: '잔상 남기기', predict: '다음 손 읽기', magnet: '밀고 당기기', crab: '옆걸음', blink: '순간이동', mirror: '반대편', spiral: '소용돌이', chaos: '마음대로', guard: '엉덩이 방어', rage: '점점 빠르게', overlord: '전부 다',
-};
-
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 const formatSeconds = (elapsedMs: number) => `${(elapsedMs / 1000).toFixed(2)}초`;
 const mapLegacyLevel = (id: number) => clamp(Math.ceil(id / 2), 1, LEVELS.length);
@@ -182,19 +179,20 @@ function App() {
     }, 60);
 
     let moveTimer = 0;
+    const stepsPerPhase = phaseStepsFor(difficulty.moveDelay);
     const move = () => {
       if (finishedRef.current) return;
       const step = moveStep.current++;
-      const activeBehavior = Math.floor(step / 4) % 2 === 0 ? difficulty.behavior : difficulty.secondaryBehavior;
-      if (step % 4 === 0) {
+      const activeBehavior = Math.floor(step / stepsPerPhase) % 2 === 0 ? difficulty.behavior : difficulty.secondaryBehavior;
+      if (step % stepsPerPhase === 0) {
         setPhaseBehavior(activeBehavior); setPhaseKey((value) => value + 1);
         if (step > 0) { playSound('phase', soundEnabled); void haptic('tickWeak'); track('pattern_phase_seen', { level: difficulty.id, behavior: activeBehavior, mode }); }
       }
       const next = movementFor(activeBehavior, step, positionRef.current, aimRef.current, mode === 'daily' ? daily.seed : difficulty.id * 1009);
       positionRef.current = next;
       setPosition(next);
-      setPose(difficulty.poses[step % difficulty.poses.length]);
-      if (step > 0 && step % 4 === 0) { setTaunt(LEVEL_TAUNTS[(step + difficulty.id) % LEVEL_TAUNTS.length]); setTauntKey((value) => value + 1); }
+      setPose(step % stepsPerPhase === 0 ? BEHAVIOR_GUIDES[activeBehavior].pose : difficulty.poses[step % difficulty.poses.length]);
+      if (step > 0 && step % stepsPerPhase === 0) { setTaunt(LEVEL_TAUNTS[(step + difficulty.id) % LEVEL_TAUNTS.length]); setTauntKey((value) => value + 1); }
       const hasRage = [difficulty.behavior, difficulty.secondaryBehavior].some((behavior) => behavior === 'rage' || behavior === 'overlord');
       const rageFactor = hasRage ? Math.max(.55, 1 - (Date.now() - startedAt.current) / difficulty.roundMs * .38) : 1;
       const tempoFactor = activeBehavior === 'tempo' && step % 3 === 0 ? 1.75 : 1;
@@ -472,7 +470,7 @@ function App() {
           <div className="round-status"><div><span>남은 시간</span><strong>{(remainingMs / 1000).toFixed(1)}s</strong></div><div className="fatigue-track"><i style={{ width: `${timeProgress}%` }} /></div></div>
         </div>
         <div ref={fieldRef} className={`game-field ${aim ? 'is-aiming' : ''} ${attention === 'danger' ? 'is-danger' : ''} ${result ? 'is-captured' : ''}`} onPointerDown={handleAimStart} onPointerMove={handleAimMove} onPointerUp={handleAimRelease} onPointerCancel={clearAim} aria-label="고양이 잡기 구역">
-          <div key={`phase-${phaseKey}`} className="phase-badge"><span>{mode === 'daily' ? '오늘의 움직임' : mode === 'challenge' ? '친구가 본 움직임' : '지금은'}</span><strong>{BEHAVIOR_LABELS[phaseBehavior]}</strong></div>
+          <div key={`phase-${phaseKey}`} className="phase-badge"><span>{mode === 'daily' ? '오늘의 움직임' : mode === 'challenge' ? '친구가 본 움직임' : '지금은'}</span><strong>{BEHAVIOR_GUIDES[phaseBehavior].label}</strong><small>{BEHAVIOR_GUIDES[phaseBehavior].hint}</small></div>
           <div key={`flash-${phaseKey}`} className="phase-flash" aria-hidden="true" />
           <div key={`taunt-${tauntKey}`} className="taunt-bubble" style={{ left: `${position.x}%`, top: `calc(${position.y}% - 134px)` }}>{taunt}</div>
           <div className={`cat-target attention-${attention} ${result ? 'is-caught' : ''}`} style={{ left: `${position.x}%`, top: `${position.y}%`, transform: `translate(-50%, -50%) rotate(${position.tilt}deg)`, '--move-ms': `${Math.max(135, difficulty.moveDelay * .72)}ms` } as React.CSSProperties}>

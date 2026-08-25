@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { LEVELS } from '../src/levels.ts';
 import { movementFor } from '../src/movement.ts';
+import { BEHAVIOR_GUIDES, phaseStepsFor } from '../src/behaviorGuide.ts';
 
 const start = { x: 50, y: 50, tilt: 0 };
 const key = (position) => `${position.x.toFixed(2)}:${position.y.toFixed(2)}:${position.tilt.toFixed(2)}`;
@@ -42,4 +43,25 @@ for (const behavior of ['watch', 'dodge', 'predict', 'magnet', 'mirror', 'guard'
   assert.notEqual(key(left), key(right), `${behavior}: pointer position does not affect movement`);
 }
 
-console.log(`✓ ${LEVELS.length} cats × 2 patterns × idle/aiming 80 steps verified`);
+const allBehaviors = [...new Set(LEVELS.flatMap((level) => [level.behavior, level.secondaryBehavior]))];
+const signatures = new Map();
+for (const behavior of allBehaviors) {
+  let current = { ...start };
+  const trajectory = [];
+  for (let step = 0; step < 16; step += 1) {
+    current = movementFor(behavior, step, current, { fieldX: 20 + step * 3, fieldY: 70 - step * 2, dx: 3, dy: -2 }, 91);
+    trajectory.push(key(current));
+  }
+  const signature = trajectory.join('|');
+  assert.equal(signatures.has(signature), false, `${behavior}: another behavior has the same trajectory`);
+  signatures.set(signature, behavior);
+  assert.ok(BEHAVIOR_GUIDES[behavior].label && BEHAVIOR_GUIDES[behavior].hint && BEHAVIOR_GUIDES[behavior].pose, `${behavior}: missing readable behavior guide`);
+}
+
+for (const level of LEVELS) {
+  const steps = phaseStepsFor(level.moveDelay);
+  const phaseMs = steps * level.moveDelay;
+  assert.ok(phaseMs >= 1800 && phaseMs <= 2300, `Lv.${level.id}: phase is too short or long (${phaseMs}ms)`);
+}
+
+console.log(`✓ ${LEVELS.length} cats × 2 distinct, readable patterns × idle/aiming 80 steps verified`);
