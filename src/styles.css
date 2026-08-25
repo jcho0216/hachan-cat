@@ -326,7 +326,8 @@ button:disabled { opacity: .6; cursor: wait; }
 @keyframes crownDrop { from { transform: translateY(-140px) rotate(-90deg); opacity: 0; } }
 @keyframes stampSlam { from { opacity: 0; scale: 2.2; } }
 @keyframes burstSpin { from { scale: .4; rotate: -35deg; opacity: 0; } }
-.daily-score { margin: 8px 0 0; color: #70685f; font-size: 11px; }.daily-score strong { color: var(--coral); font-size: 17px; }.daily-score small { display: block; margin-top: 3px; font-size: 9px; }
+.daily-score { margin: 8px 0 0; color: #70685f; font-size: 11px; }.daily-score strong { color: var(--coral); font-size: 17px; }.daily-score small { display: block; margin-top: 3px; font-size: 9px; }.leaderboard-state { display: inline-block; margin-top: 6px; padding: 4px 8px; border-radius: 99px; background: #f1ede6; color: #70685f; font-size: 9px; font-style: normal; font-weight: 900; }.leaderboard-state.is-submitted { background: #dff6e7; color: #237a45; }.leaderboard-state.is-submitting { animation: leaderboardPulse .7s ease-in-out infinite alternate; }
+@keyframes leaderboardPulse { to { opacity: .5; } }
 .new-best-badge { display: inline-block; margin: 9px 0 0; padding: 5px 10px; border: 2px solid var(--ink); border-radius: 99px; background: var(--yellow); box-shadow: 2px 2px 0 var(--ink); font: 700 12px 'Gaegu',cursive; transform: rotate(-2deg); }
 .result-badges { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 7px; margin-top: 9px; }
 .result-badges p { margin: 0; }

@@ -9,7 +9,7 @@ import { urgencySecondFor } from '../src/timing.ts';
 import { getGrade } from '../src/data.ts';
 import { averageHitAccuracy, getCatchMoment } from '../src/resultMoment.ts';
 import { getDailyStreak, getWeeklyBest, recordDailyScore, sanitizeDailyHistory, weekStart } from '../src/dailyProgress.ts';
-import { normalizeLeaderboardScore } from '../src/gameCenter.ts';
+import { GAME_CENTER_MIN_VERSION, isLeaderboardVersionSupported, normalizeLeaderboardScore } from '../src/gameCenter.ts';
 import { safeStorageGet, safeStorageSet } from '../src/storage.ts';
 import { analyticsKindFor } from '../src/telemetry.ts';
 
@@ -72,6 +72,9 @@ assert.equal(recordDailyScore(dailyHistory, { ...dailyHistory[1], score: 80_000 
 assert.deepEqual(sanitizeDailyHistory([{ nope: true }]), [], '깨진 주간 기록은 안전하게 무시해야 합니다.');
 assert.equal(normalizeLeaderboardScore(Number.POSITIVE_INFINITY), 0, '유효하지 않은 점수는 제출하면 안 됩니다.');
 assert.equal(normalizeLeaderboardScore(120_000), 100_000, '리더보드 점수는 계산 가능한 최대값을 넘으면 안 됩니다.');
+assert.equal(GAME_CENTER_MIN_VERSION, '5.221.0', '게임센터 최소 토스 앱 버전을 공식 지원 기준과 맞춰야 합니다.');
+assert.equal(isLeaderboardVersionSupported({ isMinVersionSupported: () => false }), false, '미지원 토스 앱에서 리더보드를 연 것으로 처리하면 안 됩니다.');
+assert.equal(isLeaderboardVersionSupported({ isMinVersionSupported: () => true }), true, '지원 토스 앱에서는 리더보드 호출을 허용해야 합니다.');
 assert.equal(safeStorageGet('missing'), null, '저장소가 없는 환경에서도 읽기가 앱을 중단하면 안 됩니다.');
 assert.equal(safeStorageSet('missing', 'value'), false, '저장소가 없는 환경에서는 실패를 안전하게 알려야 합니다.');
 assert.equal(analyticsKindFor('game_start'), 'click', '사용자가 시작한 행동은 클릭 이벤트로 전송해야 합니다.');

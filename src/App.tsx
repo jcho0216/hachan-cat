@@ -100,6 +100,7 @@ function App() {
     const legacyBest = readDailyBest();
     return history.length || !legacyBest ? history : [legacyBest];
   });
+  const [leaderboardStatus, setLeaderboardStatus] = useState<'idle' | 'submitting' | 'submitted' | 'local'>('idle');
   const [toast, setToast] = useState('');
   const [attention, setAttention] = useState<'idle' | 'watch' | 'danger'>('idle');
   const [dodgeFx, setDodgeFx] = useState<{ key: number; x: number; y: number; label: string } | null>(null);
@@ -276,6 +277,7 @@ function App() {
     setTaunt('잡을 수 있으면.'); setTauntKey((value) => value + 1); setAim(null); setFeedback(null); setAttention('idle'); setDodgeFx(null);
     setShowGameGuide(isFirstPlay);
     setRemainingMs(getLevel(safeLevel).roundMs); setResult(null); setLossResult(null); setIsNewBest(false); setBestMessage(''); setScreen('game');
+    setLeaderboardStatus('idle');
     track('game_start', { level: safeLevel, mode: nextMode, firstPlay: isFirstPlay });
     if (isFirstPlay) track('tutorial_impression', { level: safeLevel });
   }
@@ -439,7 +441,7 @@ function App() {
         if (!best || best.date !== daily.date || score > best.score) {
           safeStorageSet(DAILY_BEST_KEY, JSON.stringify(nextDailyEntry)); setDailyBest(nextDailyEntry);
         }
-        void submitDailyScore(score).then((success) => track('leaderboard_submit', { score, success }));
+        void syncLeaderboardScore(score, 'game_end');
       }
       track('game_catch', { level: difficulty.id, mode, elapsedMs, attempts: nextAttempts, score: score ?? 0, tutorial: isPracticeAttempt });
       void haptic(difficulty.id === LEVELS.length ? 'confetti' : 'success'); playSound('catch', soundEnabled);
@@ -519,9 +521,19 @@ function App() {
     catch { showNotice('공유를 마치지 못했어요.'); }
     finally { setBusy(null); }
   }
+  async function syncLeaderboardScore(score: number, source: 'game_end' | 'leaderboard_open') {
+    setLeaderboardStatus('submitting');
+    const success = await submitDailyScore(score);
+    setLeaderboardStatus(success ? 'submitted' : 'local');
+    track('leaderboard_submit', { score, success, source });
+    return success;
+  }
   async function handleLeaderboard() {
+    if (result?.mode === 'daily' && result.score !== undefined && leaderboardStatus === 'local') {
+      await syncLeaderboardScore(result.score, 'leaderboard_open');
+    }
     track('leaderboard_open', { source: screen });
-    if (!await openLeaderboard()) showNotice('전체 랭킹은 토스 앱에서 볼 수 있어요.');
+    if (!await openLeaderboard()) showNotice('토스 앱 5.221 이상에서 전체 랭킹을 볼 수 있어요.');
   }
 
   const character = (caught = false) => <CatCharacter ref={caught ? undefined : headRef} caught={caught} reward={caught ? result?.reward : undefined} pose={pose} fur={difficulty.fur} accent={difficulty.accent} evil={difficulty.evil} attention={caught ? 'idle' : attention} />;
@@ -534,7 +546,7 @@ function App() {
         <div className="home-copy"><span className="kicker">{incomingChallenge ? incomingChallenge.source === 'loss' ? '친구가 복수를 부탁함' : '피할 수 없는 기록 도착' : '잡으면 이기고, 놓치면 놀림받음'}</span><h1>{incomingChallenge ? <>친구 기록이,<br /><em>좀 건방지네?</em></> : <>이 고양이,<br /><em>한 번 잡아볼래?</em></>}</h1><p>{incomingChallenge ? '같은 고양이, 같은 규칙. 이번엔 당신 차례입니다.' : '꾹 누른 채 쫓아가세요. 머리에 닿았을 때 손을 떼면 성공.'}</p></div>
         <div className="home-character-wrap"><div className="speech-bubble">{incomingChallenge ? '남의 기록 깨는 게 제일 재밌지.' : '난 가만히 있을 생각 없는데.'}</div><CatCharacter pose={incomingChallenge ? 'taunt' : 'paddle'} evil={incomingChallenge ? getLevel(incomingChallenge.level).evil : 2} fur={incomingChallenge ? getLevel(incomingChallenge.level).fur : undefined} accent={incomingChallenge ? getLevel(incomingChallenge.level).accent : undefined} /><span className="floor-shadow" /></div>
         <div className="play-rule" aria-label="게임 방법"><span>☝</span><strong>꾹 누르고 쫓다가</strong><em>머리에서 손 떼기</em></div>
-        {incomingChallenge ? <><div className="challenge-card"><div><span>{incomingChallenge.source === 'loss' ? '친구의 복수 요청' : '친구 기록 도착'}</span><strong>Lv.{incomingChallenge.level} {getLevel(incomingChallenge.level).name}</strong><p>{incomingChallenge.elapsedMs ? `${formatSeconds(incomingChallenge.elapsedMs)} 안에 잡으면 승리` : '친구가 놓친 고양이, 대신 잡아주기'}</p></div><button onClick={() => startGame(incomingChallenge.level, 'challenge')}>기록 깨기</button></div><button className="text-button" onClick={() => setIncomingChallenge(null)}>일단 내 게임부터 하기</button></> : <><button className="level-select-button" onClick={() => setScreen('levels')}><span>이어서 도전</span><strong>Lv.{selectedDifficulty.id} {selectedDifficulty.name}</strong><i>10마리 보기 ›</i></button><div className="daily-card"><div><span>{daily.label}</span><strong>Lv.{daily.level.id} {daily.level.name}</strong><p>오늘은 모두 같은 움직임 · 오늘 최고 {dailyBest?.date === daily.date ? `${dailyBest.score.toLocaleString()}점` : '없음'}</p><small>{completedToday ? `${dailyStreak}일 연속 완료` : dailyStreak ? `오늘 잡으면 ${dailyStreak + 1}일 연속` : '오늘부터 연속 도전'} · 이번 주 내 최고 {weeklyBest ? `${weeklyBest.score.toLocaleString()}점` : '없음'}</small></div><button onClick={() => startGame(daily.level.id, 'daily')}>{completedToday ? '기록 단축' : '한 판 하기'}</button></div><button className="primary-button wobble-button" onClick={() => startGame()}>도전하기 <span>→</span></button><button className="rank-link" onClick={handleLeaderboard}>🏆 전체 최고 기록</button><p className="tiny-caption">15초 · 기회 5번 · 머리만 정답</p></>}
+        {incomingChallenge ? <><div className="challenge-card"><div><span>{incomingChallenge.source === 'loss' ? '친구의 복수 요청' : '친구 기록 도착'}</span><strong>Lv.{incomingChallenge.level} {getLevel(incomingChallenge.level).name}</strong><p>{incomingChallenge.elapsedMs ? `${formatSeconds(incomingChallenge.elapsedMs)} 안에 잡으면 승리` : '친구가 놓친 고양이, 대신 잡아주기'}</p></div><button onClick={() => startGame(incomingChallenge.level, 'challenge')}>기록 깨기</button></div><button className="text-button" onClick={() => setIncomingChallenge(null)}>일단 내 게임부터 하기</button></> : <><button className="level-select-button" onClick={() => setScreen('levels')}><span>이어서 도전</span><strong>Lv.{selectedDifficulty.id} {selectedDifficulty.name}</strong><i>10마리 보기 ›</i></button><div className="daily-card"><div><span>{daily.label}</span><strong>Lv.{daily.level.id} {daily.level.name}</strong><p>오늘은 모두 같은 움직임 · 오늘 최고 {dailyBest?.date === daily.date ? `${dailyBest.score.toLocaleString()}점` : '없음'}</p><small>{completedToday ? `${dailyStreak}일 연속 완료` : dailyStreak ? `오늘 잡으면 ${dailyStreak + 1}일 연속` : '오늘부터 연속 도전'} · 이번 주 내 최고 {weeklyBest ? `${weeklyBest.score.toLocaleString()}점` : '없음'}</small></div><button onClick={() => startGame(daily.level.id, 'daily')}>{completedToday ? '기록 단축' : '한 판 하기'}</button></div><button className="primary-button wobble-button" onClick={() => startGame()}>도전하기 <span>→</span></button><button className="rank-link" onClick={handleLeaderboard}>🏆 토스 전체 랭킹</button><p className="tiny-caption">15초 · 기회 5번 · 머리만 정답</p></>}
       </section>}
 
       {screen === 'levels' && <section className="levels-screen page-enter">
@@ -584,9 +596,9 @@ function App() {
           <span>{result.mode === 'daily' ? `${daily.label} 완료` : result.mode === 'challenge' ? '친구 기록 도전 완료' : `Lv.${result.level} ${result.levelName} 잡기 성공`}</span>
           <h1>{resultChallengeDelta !== null ? resultChallengeDelta <= 0 ? <>기록 격파!<br />친구보다 {formatSeconds(Math.abs(resultChallengeDelta))} 빠름</> : <>잡긴 잡았는데…<br />친구보다 {formatSeconds(resultChallengeDelta)} 늦음</> : result.mode === 'challenge' ? <>복수 성공!<br />이제 친구에게 보고할 차례.</> : result.level === LEVELS.length ? '마왕도 결국 고양이였습니다.' : <>잡았다!<br />이번 판은 네가 이겼어.</>}</h1>
           <div className="result-badges">{resultMoment && <p className="catch-moment-badge">{resultMoment.label}</p>}{isNewBest && <p className="new-best-badge">{bestMessage}</p>}</div>
-          {result.score !== undefined && <p className="daily-score"><strong>{result.score.toLocaleString()}점</strong> · 오늘 최고 {dailyBest?.score.toLocaleString()}점<small>{dailyStreak}일 연속 · 이번 주 내 최고 {weeklyBest?.score.toLocaleString()}점</small></p>}
+          {result.score !== undefined && <p className="daily-score"><strong>{result.score.toLocaleString()}점</strong> · 오늘 최고 {dailyBest?.score.toLocaleString()}점<small>{dailyStreak}일 연속 · 이번 주 내 최고 {weeklyBest?.score.toLocaleString()}점</small><em className={`leaderboard-state is-${leaderboardStatus}`}>{leaderboardStatus === 'submitting' ? '토스 랭킹 등록 중…' : leaderboardStatus === 'submitted' ? '토스 랭킹 등록 완료' : leaderboardStatus === 'local' ? '기기 기록 저장 · 토스 랭킹 미등록' : '기기 기록 저장 완료'}</em></p>}
         </div><RewardCard result={result} compact />
-        <div className="result-actions">{result.mode === 'campaign' && result.level < LEVELS.length && <button className="primary-button next-level-button" onClick={() => startGame(result.level + 1)}>다음 상대 · {getLevel(result.level + 1).name} <span>→</span></button>}{result.mode === 'daily' && <button className="primary-button" onClick={handleLeaderboard}>전체 랭킹 보기 <span>→</span></button>}<button className={result.mode === 'campaign' && result.level < LEVELS.length ? 'secondary-button' : 'primary-button'} onClick={handleShare} disabled={Boolean(busy)}>{busy === 'share' ? '공유창 여는 중…' : result.mode === 'challenge' ? '새 기록으로 도발하기' : '밈 카드로 자랑하기'}</button><div className="minor-actions"><button onClick={handleSave} disabled={Boolean(busy)}>{busy === 'save' ? '카드 만드는 중…' : '카드 저장'}</button><button onClick={() => startGame(result.level, result.mode ?? 'campaign')}>다시 잡기</button></div></div>
+        <div className="result-actions">{result.mode === 'campaign' && result.level < LEVELS.length && <button className="primary-button next-level-button" onClick={() => startGame(result.level + 1)}>다음 상대 · {getLevel(result.level + 1).name} <span>→</span></button>}{result.mode === 'daily' && <button className="primary-button" onClick={handleLeaderboard} disabled={leaderboardStatus === 'submitting'}>{leaderboardStatus === 'submitting' ? '랭킹 등록 중…' : leaderboardStatus === 'local' ? '랭킹 다시 등록·보기' : '토스 전체 랭킹 보기'} <span>→</span></button>}<button className={result.mode === 'campaign' && result.level < LEVELS.length ? 'secondary-button' : 'primary-button'} onClick={handleShare} disabled={Boolean(busy)}>{busy === 'share' ? '공유창 여는 중…' : result.mode === 'challenge' ? '새 기록으로 도발하기' : '밈 카드로 자랑하기'}</button><div className="minor-actions"><button onClick={handleSave} disabled={Boolean(busy)}>{busy === 'save' ? '카드 만드는 중…' : '카드 저장'}</button><button onClick={() => startGame(result.level, result.mode ?? 'campaign')}>다시 잡기</button></div></div>
       </section>}
 
       {screen === 'collection' && <section className="collection-screen page-enter">
