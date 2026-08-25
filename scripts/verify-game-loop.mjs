@@ -3,6 +3,7 @@ import { challengeDelta, createCatchChallengeDeepLink, createCatchChallengeWebUr
 import { calculateDailyScore } from '../src/scoring.ts';
 import { isBetterResult, recordLevelBest } from '../src/records.ts';
 import { nextUnlockedLevel } from '../src/progress.ts';
+import { isCatchGesture } from '../src/inputRules.ts';
 
 const result = { level: 7, elapsedMs: 3240, attempts: 2, accuracy: 91, grade: 'A', levelName: '깜빡냥', nearMisses: 1, verdict: '', reward: {}, mode: 'challenge' };
 const catchLink = createCatchChallengeDeepLink(result);
@@ -29,5 +30,8 @@ assert.equal(recordLevelBest(first.bests, { ...result, elapsedMs: 3100 }).isNewB
 assert.equal(nextUnlockedLevel(3, 7, 'challenge'), 3, '친구 도전은 캠페인 진행도를 건너뛰면 안 됩니다.');
 assert.equal(nextUnlockedLevel(3, 7, 'daily'), 3, '오늘의 한 판은 캠페인 진행도를 건너뛰면 안 됩니다.');
 assert.equal(nextUnlockedLevel(3, 3, 'campaign'), 4, '캠페인 포획만 다음 레벨을 열어야 합니다.');
+assert.equal(isCatchGesture(80, 80), false, '빠른 탭으로는 잡히면 안 됩니다.');
+assert.equal(isCatchGesture(300, 8), false, '머리 위에서 누르고만 있어도 잡히면 안 됩니다.');
+assert.equal(isCatchGesture(220, 48), true, '누른 채 실제로 쫓아온 손만 포획할 수 있어야 합니다.');
 
 console.log('✓ challenge links, fair scoring, and personal bests verified');

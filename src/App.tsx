@@ -17,9 +17,10 @@ import type { CatBehavior } from './levels';
 import { challengeDelta, parseChallengeTarget, type ChallengeTarget } from './challenge';
 import { LEVEL_BESTS_KEY, readLevelBests, recordLevelBest } from './records';
 import { nextUnlockedLevel } from './progress';
+import { isCatchGesture } from './inputRules';
 
 type Screen = 'home' | 'levels' | 'game' | 'ending' | 'result' | 'loss' | 'collection';
-type Aim = MovementAim & { x: number; y: number; clientX: number; clientY: number; startedAt: number };
+type Aim = MovementAim & { x: number; y: number; clientX: number; clientY: number; startedAt: number; traveledPx: number };
 
 const START_POSITION: Position = { x: 50, y: 50, tilt: 0 };
 const COLLECTION_KEY = 'hachan-cat-collection-v1';
@@ -260,7 +261,7 @@ function App() {
     const point = pointInField(event.clientX, event.clientY);
     if (!point) return;
     event.currentTarget.setPointerCapture(event.pointerId);
-    const nextAim = { ...point, clientX: event.clientX, clientY: event.clientY, startedAt: Date.now(), dx: 0, dy: 0 };
+    const nextAim = { ...point, clientX: event.clientX, clientY: event.clientY, startedAt: Date.now(), traveledPx: 0, dx: 0, dy: 0 };
     reactedToAimRef.current = false; aimRef.current = nextAim; setAim(nextAim); setAttention('watch');
     if (showGameGuide) {
       practiceAttemptRef.current = true;
@@ -277,7 +278,7 @@ function App() {
     if (!previous) return;
     const point = pointInField(event.clientX, event.clientY);
     if (!point) return;
-    const nextAim = { ...previous, ...point, clientX: event.clientX, clientY: event.clientY, dx: point.fieldX - previous.fieldX, dy: point.fieldY - previous.fieldY };
+    const nextAim = { ...previous, ...point, clientX: event.clientX, clientY: event.clientY, traveledPx: previous.traveledPx + Math.hypot(point.x - previous.x, point.y - previous.y), dx: point.fieldX - previous.fieldX, dy: point.fieldY - previous.fieldY };
     aimRef.current = nextAim; setAim(nextAim);
     const head = headRef.current?.getBoundingClientRect();
     if (!head) return;
@@ -311,7 +312,17 @@ function App() {
     const hitRadius = Math.min(difficulty.hitRadius, visualRadius);
     const accuracy = clamp(Math.round(100 - Math.max(0, distance - 8) * .85), 0, 100);
     const elapsedMs = Date.now() - startedAt.current;
+    const heldMs = Date.now() - currentAim.startedAt;
+    const validCatchGesture = isCatchGesture(heldMs, currentAim.traveledPx);
     clearAim();
+
+    if (distance <= hitRadius && !validCatchGesture) {
+      setTaunt('탭 말고, 쫓아와.'); setTauntKey((value) => value + 1);
+      setFeedback({ key: Date.now(), text: '꾹 누르고 쫓아와!', near: true });
+      void haptic('basicWeak'); playSound('miss', soundEnabled);
+      track('invalid_tap', { level: difficulty.id, heldMs, traveledPx: Math.round(currentAim.traveledPx), mode });
+      return;
+    }
 
     if (distance <= hitRadius) {
       attemptsRef.current = nextAttempts; setAttempts(nextAttempts);
