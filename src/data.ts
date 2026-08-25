@@ -19,6 +19,12 @@ export const REWARDS: CatReward[] = [
   { id: 'overlord-retired', name: '마왕퇴직냥', description: '왕관을 잃고 밈 카드 모델이 됐다.', rarity: '전설이라고 함', color: '#A9A4B8', accent: '#B92235', face: 'proud' },
 ];
 
+export function sanitizeRewardIds(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  const allowed = new Set(REWARDS.map((reward) => reward.id));
+  return Array.from(new Set(value.filter((item): item is string => typeof item === 'string' && allowed.has(item))));
+}
+
 export function getGrade(accuracy: number, elapsedMs: number, attempts: number, requiredHits = 1) {
   const seconds = elapsedMs / 1000;
   const extraAttempts = Math.max(0, attempts - requiredHits);

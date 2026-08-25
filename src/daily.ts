@@ -1,4 +1,5 @@
 import { LEVELS } from './levels';
+import { sanitizeDailyBest } from './dailyProgress';
 export { calculateDailyScore } from './scoring';
 
 export type DailyBest = { date: string; score: number; elapsedMs: number; attempts: number; level: number };
@@ -22,5 +23,5 @@ export function getDailyChallenge(date = todayInKorea()) {
 }
 
 export function readDailyBest(): DailyBest | null {
-  try { return JSON.parse(localStorage.getItem(DAILY_BEST_KEY) ?? 'null') as DailyBest | null; } catch { return null; }
+  try { return sanitizeDailyBest(JSON.parse(localStorage.getItem(DAILY_BEST_KEY) ?? 'null')) as DailyBest | null; } catch { return null; }
 }

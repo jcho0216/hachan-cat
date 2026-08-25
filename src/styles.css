@@ -178,6 +178,11 @@ button:focus-visible { outline: 4px solid #3b82f6; outline-offset: 3px; }
 .cat-target { position: absolute; width: 142px; height: 208px; padding: 0; pointer-events: none; transition: left var(--move-ms,.36s) cubic-bezier(.2,.72,.3,1), top var(--move-ms,.36s) cubic-bezier(.2,.72,.3,1), transform var(--move-ms,.36s); z-index: 5; }
 .cat-target .cat-character { width: 100%; }
 .cat-target.attention-watch { filter: drop-shadow(0 7px 0 rgba(32,33,36,.08)); }.cat-target.attention-danger { z-index: 8; filter: drop-shadow(0 0 9px rgba(255,103,87,.3)); }
+.cat-target.has-opening { z-index: 9; filter: drop-shadow(0 0 12px rgba(255,193,90,.75)); }
+.cat-target.has-opening::after { content: ''; position: absolute; left: 50%; top: 39%; width: 104px; height: 104px; translate: -50% -50%; border: 4px dashed var(--yellow); border-radius: 50%; animation: openingPulse .24s ease-in-out infinite alternate; }
+.opening-badge { position: absolute; left: 50%; top: 2px; z-index: 3; translate: -50% 0; padding: 4px 9px; border: 2px solid var(--ink); border-radius: 99px; background: var(--yellow); box-shadow: 2px 2px 0 var(--ink); color: var(--ink); font: 700 12px 'Gaegu',cursive; white-space: nowrap; animation: openingPop .18s cubic-bezier(.2,1.5,.4,1) both; }
+@keyframes openingPulse { to { scale: .86; rotate: 7deg; opacity: .55; } }
+@keyframes openingPop { from { opacity: 0; scale: .55; translate: -50% 8px; } }
 .cat-afterimage { position: absolute; inset: 0; z-index: -1; opacity: .18; filter: hue-rotate(90deg); }.cat-afterimage.one { translate: -58px 8px; }.cat-afterimage.two { translate: 58px -8px; }.cat-afterimage .cat-character { animation-delay: -.2s; }
 .taunt-bubble { width: max-content; max-width: 210px; translate: -50% 0; z-index: 7; animation: tauntPop .3s cubic-bezier(.2,1.5,.5,1) both; pointer-events: none; }
 @keyframes tauntPop { from { opacity: 0; scale: .65; translate: -50% 10px; } }

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { CatCharacter } from './components/CatCharacter';
 import { LossCard } from './components/LossCard';
 import { RewardCard } from './components/RewardCard';
-import { REWARDS, chooseReward, getGrade } from './data';
+import { REWARDS, chooseReward, getGrade, sanitizeRewardIds } from './data';
 import { LEVELS, getLevel } from './levels';
 import { movementFor } from './movement';
 import { saveLossMemeCard, saveMemeCard, shareChallenge, shareLossChallenge } from './share';
@@ -17,8 +17,8 @@ import { track, trackScreen } from './telemetry';
 import type { CatBehavior } from './levels';
 import { challengeDelta, parseChallengeTarget, type ChallengeTarget } from './challenge';
 import { LEVEL_BESTS_KEY, readLevelBests, recordLevelBest } from './records';
-import { nextUnlockedLevel } from './progress';
-import { canReleaseToCatch, distanceFromCatch, isCatchGesture, isWithinReactiveRange, missDirection } from './inputRules';
+import { nextUnlockedLevel, sanitizeCaughtLevels, sanitizeLevelId } from './progress';
+import { canReleaseToCatch, distanceFromCatch, dodgeOpeningMs, isCatchGesture, isWithinReactiveRange, missDirection } from './inputRules';
 import { urgencySecondFor } from './timing';
 import { BEHAVIOR_GUIDES, phaseStepsFor } from './behaviorGuide';
 import { averageHitAccuracy, getCatchMoment } from './resultMoment';
@@ -45,11 +45,12 @@ const REACTIVE_POSES: CatPose[] = ['paddle', 'paddle', 'peek', 'leap', 'matrix',
 const DODGE_WORDS = ['슬쩍', '삭삭', '반대지', '급발진', '잔상!', '옆으로', '없지롱', '맘대로', '철벽', '어딜'];
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 const formatSeconds = (elapsedMs: number) => `${(elapsedMs / 1000).toFixed(2)}초`;
-const mapLegacyLevel = (id: number) => clamp(Math.ceil(id / 2), 1, LEVELS.length);
+const mapLegacyLevel = (id: number) => Number.isFinite(id) ? clamp(Math.ceil(id / 2), 1, LEVELS.length) : 1;
 const readLegacyCaughtLevels = () => {
   try {
-    const legacy = JSON.parse(safeStorageGet(LEGACY_CAUGHT_LEVELS_KEY) ?? '[]') as number[];
-    return Array.from(new Set(legacy.map(mapLegacyLevel)));
+    const legacy = JSON.parse(safeStorageGet(LEGACY_CAUGHT_LEVELS_KEY) ?? '[]');
+    if (!Array.isArray(legacy)) return [];
+    return sanitizeCaughtLevels(legacy.filter((item): item is number => typeof item === 'number').map(mapLegacyLevel), LEVELS.length);
   } catch { return []; }
 };
 
@@ -60,21 +61,22 @@ function App() {
   const [nearMisses, setNearMisses] = useState(0);
   const [selectedLevel, setSelectedLevel] = useState(() => {
     const saved = safeStorageGet(SELECTED_LEVEL_KEY);
-    return saved ? clamp(Number(saved), 1, LEVELS.length) : mapLegacyLevel(Number(safeStorageGet(LEGACY_SELECTED_LEVEL_KEY) ?? 1));
+    const legacy = mapLegacyLevel(Number(safeStorageGet(LEGACY_SELECTED_LEVEL_KEY) ?? 1));
+    return sanitizeLevelId(saved, legacy, LEVELS.length);
   });
   const [activeLevel, setActiveLevel] = useState(selectedLevel);
   const [unlockedLevel, setUnlockedLevel] = useState(() => {
     const saved = safeStorageGet(PROGRESS_KEY);
-    if (saved) return clamp(Number(saved), 1, LEVELS.length);
+    if (saved) return sanitizeLevelId(saved, 3, LEVELS.length);
     const migratedCaught = readLegacyCaughtLevels();
     if (migratedCaught.length) return Math.min(LEVELS.length, Math.max(...migratedCaught) + 1);
     const legacyProgress = safeStorageGet(LEGACY_PROGRESS_KEY);
-    return legacyProgress ? mapLegacyLevel(Number(legacyProgress)) : 3;
+    return legacyProgress ? sanitizeLevelId(mapLegacyLevel(Number(legacyProgress)), 3, LEVELS.length) : 3;
   });
   const [caughtLevels, setCaughtLevels] = useState<number[]>(() => {
     try {
-      const saved = JSON.parse(safeStorageGet(CAUGHT_LEVELS_KEY) ?? '[]') as number[];
-      if (saved.length) return saved;
+      const saved = safeStorageGet(CAUGHT_LEVELS_KEY);
+      if (saved !== null) return sanitizeCaughtLevels(JSON.parse(saved), LEVELS.length);
     } catch { /* 기존 진행도에서 복구 */ }
     return readLegacyCaughtLevels();
   });
@@ -89,7 +91,7 @@ function App() {
   const [result, setResult] = useState<GameResult | null>(null);
   const [lossResult, setLossResult] = useState<GameLoss | null>(null);
   const [collectionTab, setCollectionTab] = useState<'levels' | 'memes'>('levels');
-  const [collection, setCollection] = useState<string[]>(() => { try { return JSON.parse(safeStorageGet(COLLECTION_KEY) ?? '[]'); } catch { return []; } });
+  const [collection, setCollection] = useState<string[]>(() => { try { return sanitizeRewardIds(JSON.parse(safeStorageGet(COLLECTION_KEY) ?? '[]')); } catch { return []; } });
   const [busy, setBusy] = useState<'save' | 'share' | null>(null);
   const [mode, setMode] = useState<GameMode>('campaign');
   const [phaseBehavior, setPhaseBehavior] = useState<CatBehavior>(() => getLevel(selectedLevel).behavior);
@@ -105,6 +107,7 @@ function App() {
   const [toast, setToast] = useState('');
   const [attention, setAttention] = useState<'idle' | 'watch' | 'danger'>('idle');
   const [dodgeFx, setDodgeFx] = useState<{ key: number; x: number; y: number; label: string } | null>(null);
+  const [dodgeOpening, setDodgeOpening] = useState(false);
   const [showGameGuide, setShowGameGuide] = useState(false);
   const [levelBests, setLevelBests] = useState(readLevelBests);
   const [isNewBest, setIsNewBest] = useState(false);
@@ -132,6 +135,8 @@ function App() {
   const reactedToAimRef = useRef(false);
   const practiceAttemptRef = useRef(false);
   const urgencySecondRef = useRef(0);
+  const dodgeOpeningUntilRef = useRef(0);
+  const dodgeOpeningTimerRef = useRef(0);
   const toastTimerRef = useRef(0);
   const lastTrackedScreenRef = useRef('');
   const difficulty = getLevel(activeLevel);
@@ -234,6 +239,11 @@ function App() {
     const stepsPerPhase = phaseStepsFor(difficulty.moveDelay);
     const move = () => {
       if (finishedRef.current) return;
+      const recoveryLeft = dodgeOpeningUntilRef.current - Date.now();
+      if (recoveryLeft > 0) {
+        moveTimer = window.setTimeout(move, Math.min(80, recoveryLeft));
+        return;
+      }
       const step = moveStep.current++;
       const activeBehavior = Math.floor(step / stepsPerPhase) % 2 === 0 ? difficulty.behavior : difficulty.secondaryBehavior;
       if (step % stepsPerPhase === 0) {
@@ -271,11 +281,12 @@ function App() {
     setMode(nextMode);
     setActiveChallenge(nextMode === 'challenge' ? incomingChallenge : null);
     startedAt.current = Date.now();
-    moveStep.current = 0; attemptsRef.current = 0; missesRef.current = 0; bossHitsRef.current = 0; hitAccuracyTotalRef.current = 0; urgencySecondRef.current = 0; finishedRef.current = false; aimRef.current = null; positionRef.current = START_POSITION; reactedToAimRef.current = false; practiceAttemptRef.current = false;
+    window.clearTimeout(dodgeOpeningTimerRef.current);
+    moveStep.current = 0; attemptsRef.current = 0; missesRef.current = 0; bossHitsRef.current = 0; hitAccuracyTotalRef.current = 0; urgencySecondRef.current = 0; dodgeOpeningUntilRef.current = 0; finishedRef.current = false; aimRef.current = null; positionRef.current = START_POSITION; reactedToAimRef.current = false; practiceAttemptRef.current = false;
     nearMissesRef.current = 0; closestDistanceRef.current = Number.POSITIVE_INFINITY;
     setAttempts(0); setMisses(0); setNearMisses(0); setBossHits(0); setPose('wiggle'); setPosition(START_POSITION);
     setPhaseBehavior(getLevel(safeLevel).behavior); setPhaseKey((value) => value + 1);
-    setTaunt('잡을 수 있으면.'); setTauntKey((value) => value + 1); setAim(null); setFeedback(null); setAttention('idle'); setDodgeFx(null);
+    setTaunt('잡을 수 있으면.'); setTauntKey((value) => value + 1); setAim(null); setFeedback(null); setAttention('idle'); setDodgeFx(null); setDodgeOpening(false);
     setShowGameGuide(isFirstPlay);
     setRemainingMs(getLevel(safeLevel).roundMs); setResult(null); setLossResult(null); setIsNewBest(false); setBestMessage(''); setScreen('game');
     setLeaderboardStatus('idle');
@@ -319,9 +330,14 @@ function App() {
     setTaunt(difficulty.id >= 8 ? ['늦었어.', '그 손 다 보여.', '그것밖에 안되냐?', '한 번 더 와봐.'][moveStep.current % 4] : NEAR_TAUNTS[(moveStep.current + difficulty.id) % NEAR_TAUNTS.length]);
     setTauntKey((value) => value + 1);
     moveCatAway(clientX, clientY, forcedPose);
+    const openingMs = dodgeOpeningMs(difficulty.id);
+    dodgeOpeningUntilRef.current = Date.now() + openingMs;
+    setDodgeOpening(true);
+    window.clearTimeout(dodgeOpeningTimerRef.current);
+    dodgeOpeningTimerRef.current = window.setTimeout(() => { dodgeOpeningUntilRef.current = 0; setDodgeOpening(false); }, openingMs);
     setAttention('watch');
     void haptic('wiggle'); playSound('near', soundEnabled);
-    track('reactive_dodge', { level: difficulty.id, behavior: phaseBehavior, mode });
+    track('reactive_dodge', { level: difficulty.id, behavior: phaseBehavior, mode, openingMs });
   }
 
   function handleAimStart(event: React.PointerEvent<HTMLDivElement>) {
@@ -370,6 +386,7 @@ function App() {
     const wasPractice = practiceAttemptRef.current;
     practiceAttemptRef.current = false;
     clearAim();
+    window.clearTimeout(dodgeOpeningTimerRef.current); dodgeOpeningUntilRef.current = 0; setDodgeOpening(false);
     if (wasPractice) setShowGameGuide(true);
   }
 
@@ -395,6 +412,7 @@ function App() {
     const heldMs = Date.now() - currentAim.startedAt;
     const validCatchGesture = isCatchGesture(heldMs, currentAim.traveledPx);
     clearAim();
+    window.clearTimeout(dodgeOpeningTimerRef.current); dodgeOpeningUntilRef.current = 0; setDodgeOpening(false);
 
     if (distance <= hitRadius && !validCatchGesture) {
       setTaunt('탭 말고, 쫓아와.'); setTauntKey((value) => value + 1);
@@ -565,8 +583,9 @@ function App() {
         <div ref={fieldRef} className={`game-field ${aim ? 'is-aiming' : ''} ${attention === 'danger' ? 'is-danger' : ''} ${result ? 'is-captured' : ''}`} onPointerDown={handleAimStart} onPointerMove={handleAimMove} onPointerUp={handleAimRelease} onPointerCancel={cancelAim} onLostPointerCapture={cancelAim} aria-label="고양이 잡기 구역">
           <div key={`phase-${phaseKey}`} className="phase-badge"><span>{mode === 'daily' ? '오늘의 움직임' : mode === 'challenge' ? '친구가 본 움직임' : '지금은'}</span><strong>{BEHAVIOR_GUIDES[phaseBehavior].label}</strong><small>{BEHAVIOR_GUIDES[phaseBehavior].hint}</small></div>
           <div key={`flash-${phaseKey}`} className="phase-flash" aria-hidden="true" />
-          <div key={`taunt-${tauntKey}`} className="taunt-bubble" style={{ left: `${position.x}%`, top: `calc(${position.y}% - 134px)` }}>{taunt}</div>
-          <div className={`cat-target attention-${attention} ${result ? 'is-caught' : ''}`} style={{ left: `${position.x}%`, top: `${position.y}%`, transform: `translate(-50%, -50%) rotate(${position.tilt}deg)`, '--move-ms': `${Math.max(135, difficulty.moveDelay * .72)}ms` } as React.CSSProperties}>
+          {!dodgeOpening && <div key={`taunt-${tauntKey}`} className="taunt-bubble" style={{ left: `${position.x}%`, top: `calc(${position.y}% - 134px)` }}>{taunt}</div>}
+          <div className={`cat-target attention-${attention} ${dodgeOpening ? 'has-opening' : ''} ${result ? 'is-caught' : ''}`} style={{ left: `${position.x}%`, top: `${position.y}%`, transform: `translate(-50%, -50%) rotate(${position.tilt}deg)`, '--move-ms': `${Math.max(135, difficulty.moveDelay * .72)}ms` } as React.CSSProperties}>
+            {dodgeOpening && <span className="opening-badge" role="status">빈틈! 지금 쫓아</span>}
             {['clone', 'overlord'].some((behavior) => [difficulty.behavior, difficulty.secondaryBehavior].includes(behavior as typeof difficulty.behavior)) && <><span className="cat-afterimage one"><CatCharacter pose={pose} fur={difficulty.fur} accent={difficulty.accent} evil={difficulty.evil} /></span><span className="cat-afterimage two"><CatCharacter pose={pose} fur={difficulty.fur} accent={difficulty.accent} evil={difficulty.evil} /></span></>}
             {character(Boolean(result))}
           </div>
