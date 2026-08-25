@@ -12,6 +12,7 @@ import { getDailyStreak, getWeeklyBest, recordDailyScore, sanitizeDailyBest, san
 import { GAME_CENTER_MIN_VERSION, isLeaderboardVersionSupported, normalizeLeaderboardScore } from '../src/gameCenter.ts';
 import { safeStorageGet, safeStorageSet } from '../src/storage.ts';
 import { analyticsKindFor } from '../src/telemetry.ts';
+import { getResultPrimaryAction } from '../src/resultFlow.ts';
 
 const result = { level: 7, elapsedMs: 3240, attempts: 2, accuracy: 91, grade: 'A', levelName: '깜빡냥', nearMisses: 1, verdict: '', reward: {}, mode: 'challenge' };
 const catchLink = createCatchChallengeDeepLink(result);
@@ -91,5 +92,10 @@ assert.equal(analyticsKindFor('game_start'), 'click', '사용자가 시작한 �
 assert.equal(analyticsKindFor('tutorial_start'), 'click', '튜토리얼 조작 시작은 클릭 이벤트로 전송해야 합니다.');
 assert.equal(analyticsKindFor('loss_meme_share'), 'click', '패배 카드 공유도 사용자 클릭 이벤트로 전송해야 합니다.');
 assert.equal(analyticsKindFor('game_catch'), 'impression', '게임 결과는 노출 이벤트로 전송해야 합니다.');
+assert.equal(getResultPrimaryAction('campaign', 4, 10, null), 'next', '캠페인 승리 후에는 다음 고양이가 주 행동이어야 합니다.');
+assert.equal(getResultPrimaryAction('daily', 6, 10, null), 'retry', '오늘의 한 판은 기록 단축 재도전이 주 행동이어야 합니다.');
+assert.equal(getResultPrimaryAction('challenge', 7, 10, 240), 'retry', '친구보다 느리면 기록 재도전이 주 행동이어야 합니다.');
+assert.equal(getResultPrimaryAction('challenge', 7, 10, -240), 'share', '친구 기록을 깨면 도발 공유가 주 행동이어야 합니다.');
+assert.equal(getResultPrimaryAction('campaign', 10, 10, null), 'share', '최종 보스 뒤에는 획득 카드를 자랑하도록 이어져야 합니다.');
 
 console.log('✓ challenge links, fair scoring, records, tension feedback, and analytics routing verified');

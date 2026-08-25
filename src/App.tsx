@@ -24,6 +24,7 @@ import { BEHAVIOR_GUIDES, phaseStepsFor } from './behaviorGuide';
 import { averageHitAccuracy, getCatchMoment } from './resultMoment';
 import { DAILY_HISTORY_KEY, getDailyStreak, getWeeklyBest, readDailyHistory, recordDailyScore } from './dailyProgress';
 import { safeStorageGet, safeStorageSet } from './storage';
+import { getResultPrimaryAction } from './resultFlow';
 
 type Screen = 'home' | 'levels' | 'game' | 'ending' | 'result' | 'loss' | 'collection';
 type Aim = MovementAim & { x: number; y: number; clientX: number; clientY: number; startedAt: number; traveledPx: number };
@@ -269,6 +270,7 @@ function App() {
   const rewardCount = useMemo(() => new Set(collection.filter((id) => REWARDS.some((reward) => reward.id === id))).size, [collection]);
   const timeProgress = Math.round((remainingMs / difficulty.roundMs) * 100);
   const resultChallengeDelta = result ? challengeDelta(result.elapsedMs, activeChallenge) : null;
+  const resultPrimaryAction = result ? getResultPrimaryAction(result.mode, result.level, LEVELS.length, resultChallengeDelta) : 'share';
   const resultMoment = result ? getCatchMoment(result, getLevel(result.level).hitsRequired ?? 1) : null;
   const weeklyBest = getWeeklyBest(dailyHistory, daily.date);
   const dailyStreak = getDailyStreak(dailyHistory, daily.date);
@@ -626,7 +628,13 @@ function App() {
           <div className="result-badges">{resultMoment && <p className="catch-moment-badge">{resultMoment.label}</p>}{isNewBest && <p className="new-best-badge">{bestMessage}</p>}</div>
           {result.score !== undefined && <p className="daily-score"><strong>{result.score.toLocaleString()}점</strong> · 오늘 최고 {dailyBest?.score.toLocaleString()}점<small>{dailyStreak}일 연속 · 이번 주 내 최고 {weeklyBest?.score.toLocaleString()}점</small><em className={`leaderboard-state is-${leaderboardStatus}`}>{leaderboardStatus === 'submitting' ? '토스 랭킹 등록 중…' : leaderboardStatus === 'submitted' ? '토스 랭킹 등록 완료' : leaderboardStatus === 'local' ? '기기 기록 저장 · 토스 랭킹 미등록' : '기기 기록 저장 완료'}</em></p>}
         </div><RewardCard result={result} compact />
-        <div className="result-actions">{result.mode === 'campaign' && result.level < LEVELS.length && <button className="primary-button next-level-button" onClick={() => startGame(result.level + 1)}>다음 상대 · {getLevel(result.level + 1).name} <span>→</span></button>}{result.mode === 'daily' && <button className="primary-button" onClick={handleLeaderboard} disabled={leaderboardStatus === 'submitting'}>{leaderboardStatus === 'submitting' ? '랭킹 등록 중…' : leaderboardStatus === 'local' ? '랭킹 다시 등록·보기' : '토스 전체 랭킹 보기'} <span>→</span></button>}<button className={result.mode === 'campaign' && result.level < LEVELS.length ? 'secondary-button' : 'primary-button'} onClick={handleShare} disabled={Boolean(busy)}>{busy === 'share' ? '공유창 여는 중…' : result.mode === 'challenge' ? '새 기록으로 도발하기' : '밈 카드로 자랑하기'}</button><div className="minor-actions"><button onClick={handleSave} disabled={Boolean(busy)}>{busy === 'save' ? '카드 만드는 중…' : '카드 저장'}</button><button onClick={() => startGame(result.level, result.mode ?? 'campaign')}>다시 잡기</button></div></div>
+        <div className="result-actions">
+          {resultPrimaryAction === 'next' && <button className="primary-button next-level-button" onClick={() => startGame(result.level + 1)} disabled={Boolean(busy)}>다음 상대 · {getLevel(result.level + 1).name} <span>→</span></button>}
+          {resultPrimaryAction === 'retry' && <button className="primary-button" onClick={() => startGame(result.level, result.mode ?? 'campaign')} disabled={Boolean(busy)}>{result.mode === 'daily' ? '기록 단축 · 한 판 더' : '친구 기록 다시 깨기'} <span>→</span></button>}
+          <button className={resultPrimaryAction === 'share' ? 'primary-button' : 'secondary-button'} onClick={handleShare} disabled={Boolean(busy)}>{busy === 'share' ? '공유창 여는 중…' : result.mode === 'challenge' ? '새 기록으로 도발하기' : '밈 카드로 자랑하기'}</button>
+          {resultPrimaryAction === 'share' && <button className="secondary-button" onClick={() => startGame(result.level, result.mode ?? 'campaign')} disabled={Boolean(busy)}>{result.mode === 'challenge' ? '한 번 더 기록 단축' : '같은 냥이 다시 잡기'}</button>}
+          <div className="minor-actions"><button onClick={handleSave} disabled={Boolean(busy)}>{busy === 'save' ? '카드 만드는 중…' : '카드 저장'}</button>{result.mode === 'daily' ? <button onClick={handleLeaderboard} disabled={Boolean(busy) || leaderboardStatus === 'submitting'}>{leaderboardStatus === 'submitting' ? '랭킹 등록 중…' : leaderboardStatus === 'local' ? '랭킹 재등록·보기' : '토스 전체 랭킹'}</button> : resultPrimaryAction === 'next' ? <button onClick={() => startGame(result.level, result.mode ?? 'campaign')} disabled={Boolean(busy)}>다시 잡기</button> : <button onClick={() => setScreen('levels')} disabled={Boolean(busy)}>다른 고양이</button>}</div>
+        </div>
       </section>}
 
       {screen === 'collection' && <section className="collection-screen page-enter">

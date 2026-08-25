@@ -237,6 +237,13 @@ button:focus-visible { outline: 4px solid #3b82f6; outline-offset: 3px; }
 .score-row strong { font-size: 17px; }.score-row span { color: #8b8379; font-size: 8px; margin-top: 2px; }
 .reward-card blockquote { margin: 12px 0 3px; text-align: center; font: 700 16px 'Gaegu', cursive; }
 .reward-card footer { color: #9d958c; text-align: center; font-size: 8px; letter-spacing: .5px; }
+.reward-card.is-compact { padding: 14px 16px; border-radius: 22px; }
+.reward-card.is-compact .reward-card__character { height: 126px; }
+.reward-card.is-compact .reward-card__character .cat-character { width: 88px; margin-top: 13px; }
+.reward-card.is-compact .reward-sun { width: 112px; height: 112px; top: 9px; }
+.reward-card.is-compact .reward-card__description { min-height: 0; margin: 4px auto 8px; }
+.reward-card.is-compact .score-row { padding-block: 7px; }
+.reward-card.is-compact blockquote { margin-block: 8px 2px; }
 .result-actions { display: grid; gap: 11px; margin-top: 22px; }
 .minor-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }.minor-actions button { min-height: 44px; border: 0; border-radius: 12px; background: transparent; color: #827a70; font-size: 12px; font-weight: 800; cursor: pointer; }.minor-actions button + button { border-left: 1px solid #d8d0c4; border-radius: 0; }
 .next-level-button { background: linear-gradient(135deg,var(--coral),#ff8a5c); }
@@ -346,7 +353,8 @@ button:disabled { opacity: .6; cursor: wait; }
 .loss-screen { height: calc(100dvh - var(--header-height)); padding: 10px 22px calc(28px + env(safe-area-inset-bottom)); overflow-y: auto; text-align: center; }
 .loss-stamp { padding: 6px 13px; border: 3px solid var(--coral); color: var(--coral); font: 900 15px/1 system-ui,sans-serif; letter-spacing: 2px; transform: rotate(-5deg); }
 .loss-heading { margin: 10px 0 16px; }.loss-heading h1 { margin: 14px 0 2px; font-size: 27px; letter-spacing: -1.5px; }.loss-heading p { margin: 0; color: #746d64; font-size: 12px; }
-.loss-card { box-shadow: 7px 8px 0 #B92235; }.loss-card .loss-pill { background: #B92235; color: #fff; }.loss-card .loss-sun { opacity: .72; }.loss-card blockquote { color: var(--coral); }
+.loss-card { padding: 14px 16px; border-radius: 22px; box-shadow: 7px 8px 0 #B92235; }.loss-card .loss-pill { background: #B92235; color: #fff; }.loss-card .loss-sun { opacity: .72; }.loss-card blockquote { color: var(--coral); }
+.loss-card .reward-card__character { height: 126px; }.loss-card .reward-card__character .cat-character { width: 88px; margin-top: 13px; }.loss-card .reward-sun { width: 112px; height: 112px; top: 9px; }.loss-card .reward-card__description { min-height: 0; margin: 4px auto 8px; }.loss-card .score-row { padding-block: 7px; }.loss-card blockquote { margin-block: 8px 2px; }
 .loss-actions { display: grid; gap: 10px; margin-top: 22px; }.loss-actions .text-button + .text-button { margin-top: -8px; }
 
 @media (max-height: 720px) {
