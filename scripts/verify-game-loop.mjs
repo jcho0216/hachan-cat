@@ -6,6 +6,8 @@ import { nextUnlockedLevel } from '../src/progress.ts';
 import { distanceFromCatch, isCatchGesture } from '../src/inputRules.ts';
 import { getClosenessLabel } from '../src/lossCopy.ts';
 import { urgencySecondFor } from '../src/timing.ts';
+import { getGrade } from '../src/data.ts';
+import { averageHitAccuracy, getCatchMoment } from '../src/resultMoment.ts';
 
 const result = { level: 7, elapsedMs: 3240, attempts: 2, accuracy: 91, grade: 'A', levelName: '깜빡냥', nearMisses: 1, verdict: '', reward: {}, mode: 'challenge' };
 const catchLink = createCatchChallengeDeepLink(result);
@@ -42,5 +44,10 @@ assert.equal(urgencySecondFor(2999), 3, '막판 카운트다운은 3초부터 �
 assert.equal(urgencySecondFor(1), 1, '마지막 순간까지 1초 긴급 상태를 유지해야 합니다.');
 assert.equal(getClosenessLabel(Number.POSITIVE_INFINITY), '—', '시도하지 않은 패배에는 근접도를 만들지 않아야 합니다.');
 assert.equal(getClosenessLabel(24), '코앞', '가까운 패배를 재도전 단서로 보여줘야 합니다.');
+assert.equal(averageHitAccuracy(270, 90, 4), 90, '보스 정확도는 모든 필수 명중의 평균이어야 합니다.');
+assert.equal(getGrade(96, 5000, 4, 4)[0], 'S+', '필수 보스 명중은 등급에서 실수로 계산하면 안 됩니다.');
+assert.notEqual(getGrade(96, 5000, 4, 1)[0], 'S+', '일반 고양이의 추가 시도는 등급에 반영되어야 합니다.');
+assert.equal(getCatchMoment({ elapsedMs: 5000, attempts: 4, accuracy: 94, nearMisses: 0, misses: 0 }, 4).label, '왕관 퍼펙트');
+assert.equal(getCatchMoment({ elapsedMs: 14_200, attempts: 3, accuracy: 80, nearMisses: 1, misses: 2 }, 1).label, '0초대 역전');
 
 console.log('✓ challenge links, fair scoring, records, and tension feedback verified');

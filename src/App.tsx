@@ -20,6 +20,7 @@ import { nextUnlockedLevel } from './progress';
 import { distanceFromCatch, isCatchGesture } from './inputRules';
 import { urgencySecondFor } from './timing';
 import { BEHAVIOR_GUIDES, phaseStepsFor } from './behaviorGuide';
+import { averageHitAccuracy, getCatchMoment } from './resultMoment';
 
 type Screen = 'home' | 'levels' | 'game' | 'ending' | 'result' | 'loss' | 'collection';
 type Aim = MovementAim & { x: number; y: number; clientX: number; clientY: number; startedAt: number; traveledPx: number };
@@ -112,6 +113,7 @@ function App() {
   const attemptsRef = useRef(0);
   const missesRef = useRef(0);
   const bossHitsRef = useRef(0);
+  const hitAccuracyTotalRef = useRef(0);
   const finishedRef = useRef(false);
   const nearMissesRef = useRef(0);
   const closestDistanceRef = useRef(Number.POSITIVE_INFINITY);
@@ -206,6 +208,7 @@ function App() {
   const rewardCount = useMemo(() => new Set(collection.filter((id) => REWARDS.some((reward) => reward.id === id))).size, [collection]);
   const timeProgress = Math.round((remainingMs / difficulty.roundMs) * 100);
   const resultChallengeDelta = result ? challengeDelta(result.elapsedMs, activeChallenge) : null;
+  const resultMoment = result ? getCatchMoment(result, getLevel(result.level).hitsRequired ?? 1) : null;
 
   function startGame(levelId = selectedLevel, nextMode: GameMode = 'campaign') {
     const safeLevel = nextMode === 'daily' || nextMode === 'challenge' ? clamp(levelId, 1, LEVELS.length) : Math.min(levelId, unlockedLevel, LEVELS.length);
@@ -214,7 +217,7 @@ function App() {
     setMode(nextMode);
     setActiveChallenge(nextMode === 'challenge' ? incomingChallenge : null);
     startedAt.current = Date.now();
-    moveStep.current = 0; attemptsRef.current = 0; missesRef.current = 0; bossHitsRef.current = 0; urgencySecondRef.current = 0; finishedRef.current = false; aimRef.current = null; positionRef.current = START_POSITION; reactedToAimRef.current = false; practiceAttemptRef.current = false;
+    moveStep.current = 0; attemptsRef.current = 0; missesRef.current = 0; bossHitsRef.current = 0; hitAccuracyTotalRef.current = 0; urgencySecondRef.current = 0; finishedRef.current = false; aimRef.current = null; positionRef.current = START_POSITION; reactedToAimRef.current = false; practiceAttemptRef.current = false;
     nearMissesRef.current = 0; closestDistanceRef.current = Number.POSITIVE_INFINITY;
     setAttempts(0); setMisses(0); setNearMisses(0); setBossHits(0); setPose('wiggle'); setPosition(START_POSITION);
     setPhaseBehavior(getLevel(safeLevel).behavior); setPhaseKey((value) => value + 1);
@@ -337,6 +340,7 @@ function App() {
       const requiredHits = difficulty.hitsRequired ?? 1;
       const nextBossHits = bossHitsRef.current + 1;
       if (nextBossHits < requiredHits) {
+        hitAccuracyTotalRef.current += accuracy;
         bossHitsRef.current = nextBossHits; setBossHits(nextBossHits); setPose('panic');
         setFeedback({ key: Date.now(), text: `${nextBossHits}/${requiredHits} 명중 · ${requiredHits - nextBossHits}번 더!`, near: true });
         setTaunt(nextBossHits + 1 === requiredHits ? '어, 다음은 좀 위험한데.' : '아직 남았어.'); setTauntKey((value) => value + 1);
@@ -345,10 +349,11 @@ function App() {
         return;
       }
       finishedRef.current = true;
+      const averageAccuracy = averageHitAccuracy(hitAccuracyTotalRef.current, accuracy, requiredHits);
       const reward = chooseReward(difficulty.id);
-      const [grade, verdict] = getGrade(accuracy, elapsedMs, nextAttempts);
+      const [grade, verdict] = getGrade(averageAccuracy, elapsedMs, nextAttempts, requiredHits);
       const score = mode === 'daily' ? calculateDailyScore(elapsedMs, nextAttempts, difficulty.id, difficulty.hitsRequired ?? 1) : undefined;
-      const nextResult: GameResult = { attempts: nextAttempts, elapsedMs, accuracy, nearMisses: nearMissesRef.current, level: difficulty.id, levelName: difficulty.name, grade, verdict, reward, mode, score };
+      const nextResult: GameResult = { attempts: nextAttempts, misses: missesRef.current, elapsedMs, accuracy: averageAccuracy, nearMisses: nearMissesRef.current, level: difficulty.id, levelName: difficulty.name, grade, verdict, reward, mode, score };
       setResult(nextResult); setCollection((current) => [...current, reward.id]);
       const previousBest = levelBests[difficulty.id];
       const recorded = recordLevelBest(levelBests, nextResult);
@@ -356,11 +361,11 @@ function App() {
       setBestMessage(recorded.isNewBest ? previousBest
         ? previousBest.elapsedMs > elapsedMs
           ? `이전보다 ${formatSeconds(previousBest.elapsedMs - elapsedMs)} 단축`
-          : previousBest.attempts > nextAttempts ? `같은 시간 · 시도 ${nextAttempts}회로 갱신` : `같은 시간 · 정확도 ${accuracy}%로 갱신`
+          : previousBest.attempts > nextAttempts ? `같은 시간 · 시도 ${nextAttempts}회로 갱신` : `같은 시간 · 정확도 ${averageAccuracy}%로 갱신`
         : '첫 개인 기록 등록' : '');
       setCaughtLevels((current) => current.includes(difficulty.id) ? current : [...current, difficulty.id]);
       setUnlockedLevel((current) => nextUnlockedLevel(current, difficulty.id, mode, LEVELS.length));
-      setFeedback({ key: Date.now(), text: `잡았다 · ${accuracy}%`, near: true });
+      setFeedback({ key: Date.now(), text: `잡았다 · ${averageAccuracy}%`, near: true });
       if (mode === 'daily' && score !== undefined) {
         const best = readDailyBest();
         if (!best || best.date !== daily.date || score > best.score) {
@@ -499,7 +504,7 @@ function App() {
       </section>}
 
       {screen === 'result' && result && <section className="result-screen page-enter">
-        <div className="confetti" aria-hidden="true">✦ <i>●</i> ◆ <b>✦</b> <em>●</em></div><div className="result-heading"><span>{result.mode === 'daily' ? `${daily.label} 완료` : result.mode === 'challenge' ? '친구 기록 도전 완료' : `Lv.${result.level} ${result.levelName} 잡기 성공`}</span><h1>{resultChallengeDelta !== null ? resultChallengeDelta <= 0 ? <>기록 격파!<br />친구보다 {formatSeconds(Math.abs(resultChallengeDelta))} 빠름</> : <>잡긴 잡았는데…<br />친구보다 {formatSeconds(resultChallengeDelta)} 늦음</> : result.mode === 'challenge' ? <>복수 성공!<br />이제 친구에게 보고할 차례.</> : result.level === LEVELS.length ? '마왕도 결국 고양이였습니다.' : <>잡았다!<br />이번 판은 네가 이겼어.</>}</h1>{isNewBest && <p className="new-best-badge">{bestMessage}</p>}{result.score !== undefined && <p className="daily-score"><strong>{result.score.toLocaleString()}점</strong> · 오늘 최고 {dailyBest?.score.toLocaleString()}점</p>}</div><RewardCard result={result} compact />
+        <div className="confetti" aria-hidden="true">✦ <i>●</i> ◆ <b>✦</b> <em>●</em></div><div className="result-heading"><span>{result.mode === 'daily' ? `${daily.label} 완료` : result.mode === 'challenge' ? '친구 기록 도전 완료' : `Lv.${result.level} ${result.levelName} 잡기 성공`}</span><h1>{resultChallengeDelta !== null ? resultChallengeDelta <= 0 ? <>기록 격파!<br />친구보다 {formatSeconds(Math.abs(resultChallengeDelta))} 빠름</> : <>잡긴 잡았는데…<br />친구보다 {formatSeconds(resultChallengeDelta)} 늦음</> : result.mode === 'challenge' ? <>복수 성공!<br />이제 친구에게 보고할 차례.</> : result.level === LEVELS.length ? '마왕도 결국 고양이였습니다.' : <>잡았다!<br />이번 판은 네가 이겼어.</>}</h1><div className="result-badges">{resultMoment && <p className="catch-moment-badge">{resultMoment.label}</p>}{isNewBest && <p className="new-best-badge">{bestMessage}</p>}</div>{result.score !== undefined && <p className="daily-score"><strong>{result.score.toLocaleString()}점</strong> · 오늘 최고 {dailyBest?.score.toLocaleString()}점</p>}</div><RewardCard result={result} compact />
         <div className="result-actions">{result.mode === 'campaign' && result.level < LEVELS.length && <button className="primary-button next-level-button" onClick={() => startGame(result.level + 1)}>다음 상대 · {getLevel(result.level + 1).name} <span>→</span></button>}{result.mode === 'daily' && <button className="primary-button" onClick={handleLeaderboard}>전체 랭킹 보기 <span>→</span></button>}<button className={result.mode === 'campaign' && result.level < LEVELS.length ? 'secondary-button' : 'primary-button'} onClick={handleShare} disabled={Boolean(busy)}>{busy === 'share' ? '공유창 여는 중…' : result.mode === 'challenge' ? '새 기록으로 도발하기' : '밈 카드로 자랑하기'}</button><div className="minor-actions"><button onClick={handleSave} disabled={Boolean(busy)}>{busy === 'save' ? '카드 만드는 중…' : '카드 저장'}</button><button onClick={() => startGame(result.level, result.mode ?? 'campaign')}>다시 잡기</button></div></div>
       </section>}
 

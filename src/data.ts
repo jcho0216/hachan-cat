@@ -19,12 +19,13 @@ export const REWARDS: CatReward[] = [
   { id: 'overlord-retired', name: '마왕퇴직냥', description: '왕관을 잃고 밈 카드 모델이 됐다.', rarity: '전설이라고 함', color: '#A9A4B8', accent: '#B92235', face: 'proud' },
 ];
 
-export function getGrade(accuracy: number, elapsedMs: number, attempts: number) {
+export function getGrade(accuracy: number, elapsedMs: number, attempts: number, requiredHits = 1) {
   const seconds = elapsedMs / 1000;
-  if (accuracy >= 92 && seconds <= 6 && attempts <= 3) return ['S+', '이건 고양이도 인정'];
+  const extraAttempts = Math.max(0, attempts - requiredHits);
+  if (accuracy >= 92 && seconds <= 6 && extraAttempts <= 2) return ['S+', '이건 고양이도 인정'];
   if (accuracy >= 82 && seconds <= 11) return ['A', '제법 빨랐어'];
   if (accuracy >= 70 && seconds <= 15) return ['B', '두 번은 안 놓치겠네'];
-  if (attempts <= 8) return ['C', '끝까지 따라왔네'];
+  if (extraAttempts <= 7) return ['C', '끝까지 따라왔네'];
   return ['냥', '잡았으면 됐지'];
 }
 

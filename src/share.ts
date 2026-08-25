@@ -3,6 +3,7 @@ import type { GameLoss, GameResult } from './types';
 import { getLossCopy } from './lossCopy';
 import { createCardCatSvg } from './catAppearance';
 import { createCatchChallengeDeepLink, createCatchChallengeWebUrl, createLossChallengeDeepLink, createLossChallengeWebUrl } from './challenge';
+import { getCatchMoment } from './resultMoment';
 
 const escapeXml = (value: string) => value.replace(/[<>&'\"]/g, (char) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' })[char]!);
 const SHARE_PREVIEW_IMAGE_URL = 'https://hachan-cat.vercel.app/og-thumbnail.png?v=2';
@@ -21,8 +22,9 @@ async function svgToPng(svg: string): Promise<{ base64: string; blob: Blob }> {
   return { base64: canvas.toDataURL('image/png').split(',')[1], blob };
 }
 
-export async function createMemePng(result: GameResult): Promise<{ base64: string; blob: Blob }> {
+export function createMemeSvg(result: GameResult) {
   const level = getLevel(result.level);
+  const moment = getCatchMoment(result, level.hitsRequired ?? 1);
   const title = escapeXml(`Lv.${result.level} ${result.levelName} · ${result.reward.name} 획득`);
   const verdict = escapeXml(result.verdict);
   const description = escapeXml(result.reward.description);
@@ -30,7 +32,7 @@ export async function createMemePng(result: GameResult): Promise<{ base64: strin
   <svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350">
     <rect width="1080" height="1350" rx="72" fill="#FFF8E7"/>
     <circle cx="540" cy="490" r="270" fill="${level.accent}"/>
-    <text x="80" y="120" font-family="Arial,sans-serif" font-size="42" font-weight="700" fill="#202124">오늘의 잡기 기록</text>
+    <text x="80" y="120" font-family="Arial,sans-serif" font-size="42" font-weight="700" fill="#202124">오늘의 ${escapeXml(moment.label)}</text>
     <text x="1000" y="120" text-anchor="end" font-family="Arial,sans-serif" font-size="30" fill="#6B645C">하찮냥</text>
     ${createCardCatSvg(level, result.reward.face)}
     <text x="540" y="845" text-anchor="middle" font-family="Arial,sans-serif" font-size="44" font-weight="700" fill="#F45D4C">${title}</text>
@@ -44,7 +46,11 @@ export async function createMemePng(result: GameResult): Promise<{ base64: strin
     <text x="540" y="1280" text-anchor="middle" font-family="Arial,sans-serif" font-size="31" font-weight="700" fill="#202124">“${verdict}”</text>
   </svg>`;
 
-  return svgToPng(svg);
+  return svg;
+}
+
+export async function createMemePng(result: GameResult): Promise<{ base64: string; blob: Blob }> {
+  return svgToPng(createMemeSvg(result));
 }
 
 export async function createLossMemePng(loss: GameLoss): Promise<{ base64: string; blob: Blob }> {
@@ -104,7 +110,8 @@ export async function saveLossMemeCard(loss: GameLoss) {
 }
 
 export async function shareChallenge(result: GameResult) {
-  const message = `Lv.${result.level} ${result.levelName}, ${(result.elapsedMs / 1000).toFixed(1)}초 만에 잡음.\n이 기록 넘을 수 있겠어? 😼`;
+  const moment = getCatchMoment(result, getLevel(result.level).hitsRequired ?? 1);
+  const message = `[${moment.label}] Lv.${result.level} ${result.levelName}, ${(result.elapsedMs / 1000).toFixed(1)}초 만에 잡음.\n이 기록 넘을 수 있겠어? 😼`;
   const webUrl = createCatchChallengeWebUrl(result);
   try {
     const { getTossShareLink, share } = await import('@apps-in-toss/web-framework');

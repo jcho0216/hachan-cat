@@ -326,6 +326,9 @@ button:disabled { opacity: .6; cursor: wait; }
 @keyframes burstSpin { from { scale: .4; rotate: -35deg; opacity: 0; } }
 .daily-score { margin: 8px 0 0; color: #70685f; font-size: 11px; }.daily-score strong { color: var(--coral); font-size: 17px; }
 .new-best-badge { display: inline-block; margin: 9px 0 0; padding: 5px 10px; border: 2px solid var(--ink); border-radius: 99px; background: var(--yellow); box-shadow: 2px 2px 0 var(--ink); font: 700 12px 'Gaegu',cursive; transform: rotate(-2deg); }
+.result-badges { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 7px; margin-top: 9px; }
+.result-badges p { margin: 0; }
+.catch-moment-badge { padding: 5px 10px; border: 2px solid var(--coral); border-radius: 99px; background: #fff; color: var(--coral); box-shadow: 2px 2px 0 var(--coral); font: 700 12px 'Gaegu',cursive; transform: rotate(2deg); }
 .app-toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom)); translate: -50% 0; z-index: 100; width: min(88vw,440px); padding: 12px 16px; border-radius: 13px; background: rgba(32,33,36,.94); color: #fff; box-shadow: 0 4px 16px rgba(0,0,0,.2); text-align: center; font-size: 11px; animation: toastIn .25s ease-out both; }
 @keyframes toastIn { from { opacity: 0; translate: -50% 8px; } }
 

@@ -24,5 +24,8 @@ assert.ok(html.includes('/og-thumbnail.png?v=2'), '카카오 이미지 캐시를
 assert.ok(shareSource.includes('getTossShareLink(createCatchChallengeDeepLink(result), SHARE_PREVIEW_IMAGE_URL)'), '승리 공유 링크에 기록과 OG 이미지를 전달해야 합니다.');
 assert.ok(shareSource.includes('getTossShareLink(createLossChallengeDeepLink(loss), SHARE_PREVIEW_IMAGE_URL)'), '패배 공유 링크에 복수 대상과 OG 이미지를 전달해야 합니다.');
 assert.ok(shareSource.includes("https://hachan-cat.vercel.app/og-thumbnail.png?v=2"), '토스 공유 이미지는 HTTPS 절대 URL이어야 합니다.');
+assert.ok(shareSource.includes('export function createMemeSvg'), '저장 카드 마크업은 독립적으로 검증 가능한 함수여야 합니다.');
+assert.ok(shareSource.includes('오늘의 ${escapeXml(moment.label)}'), '저장 카드에 포획 순간 이름이 포함되어야 합니다.');
+assert.ok(shareSource.includes('[${moment.label}] Lv.${result.level}'), '공유 문구에 포획 순간 이름이 포함되어야 합니다.');
 
 console.log('✓ 1200×630 social preview and Open Graph metadata verified');
