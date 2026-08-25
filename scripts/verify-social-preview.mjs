@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 
 const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 const png = await readFile(new URL('../public/og-thumbnail.png', import.meta.url));
+const shareSource = await readFile(new URL('../src/share.ts', import.meta.url), 'utf8');
 
 assert.equal(png.toString('ascii', 1, 4), 'PNG', '공유 썸네일은 PNG 파일이어야 합니다.');
 assert.equal(png.readUInt32BE(16), 1200, '공유 썸네일 너비는 1200px이어야 합니다.');
@@ -18,5 +19,9 @@ for (const marker of [
 ]) {
   assert.ok(html.includes(marker), `공유 메타 태그가 필요합니다: ${marker}`);
 }
+
+assert.ok(html.includes('/og-thumbnail.png?v=2'), '카카오 이미지 캐시를 갱신할 버전 URL이 필요합니다.');
+assert.equal(shareSource.match(/getTossShareLink\('intoss:\/\/hachan-cat', SHARE_PREVIEW_IMAGE_URL\)/g)?.length, 2, '승리·패배 토스 공유 링크에 OG 이미지 URL을 전달해야 합니다.');
+assert.ok(shareSource.includes("https://hachan-cat.vercel.app/og-thumbnail.png?v=2"), '토스 공유 이미지는 HTTPS 절대 URL이어야 합니다.');
 
 console.log('✓ 1200×630 social preview and Open Graph metadata verified');

@@ -4,6 +4,7 @@ import { getLossCopy } from './lossCopy';
 import { createCardCatSvg } from './catAppearance';
 
 const escapeXml = (value: string) => value.replace(/[<>&'\"]/g, (char) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' })[char]!);
+const SHARE_PREVIEW_IMAGE_URL = 'https://hachan-cat.vercel.app/og-thumbnail.png?v=2';
 
 async function svgToPng(svg: string): Promise<{ base64: string; blob: Blob }> {
   const svgBlob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
@@ -105,7 +106,7 @@ export async function shareChallenge(result: GameResult) {
   const message = `Lv.${result.level} ${result.levelName}, ${(result.elapsedMs / 1000).toFixed(1)}초 만에 잡음.\n이 기록 넘을 수 있겠어? 😼`;
   try {
     const { getTossShareLink, share } = await import('@apps-in-toss/web-framework');
-    const link = await getTossShareLink('intoss://hachan-cat');
+    const link = await getTossShareLink('intoss://hachan-cat', SHARE_PREVIEW_IMAGE_URL);
     await share({ message: `${message}\n${link}` });
   } catch {
     if (navigator.share) {
@@ -121,7 +122,7 @@ export async function shareLossChallenge(loss: GameLoss) {
   const message = `Lv.${loss.level} ${loss.levelName}, 나는 ${detail}.\n너는 잡을 수 있겠어? 😿`;
   try {
     const { getTossShareLink, share } = await import('@apps-in-toss/web-framework');
-    const link = await getTossShareLink('intoss://hachan-cat');
+    const link = await getTossShareLink('intoss://hachan-cat', SHARE_PREVIEW_IMAGE_URL);
     await share({ message: `${message}\n${link}` });
   } catch {
     if (navigator.share) await navigator.share({ title: '하찮냥 놓친 기록', text: message, url: window.location.href });
