@@ -109,6 +109,7 @@ function App() {
   const [dodgeFx, setDodgeFx] = useState<{ key: number; x: number; y: number; label: string } | null>(null);
   const [dodgeOpening, setDodgeOpening] = useState(false);
   const [showGameGuide, setShowGameGuide] = useState(false);
+  const [tutorialRetry, setTutorialRetry] = useState(false);
   const [levelBests, setLevelBests] = useState(readLevelBests);
   const [isNewBest, setIsNewBest] = useState(false);
   const [bestMessage, setBestMessage] = useState('');
@@ -287,7 +288,7 @@ function App() {
     setAttempts(0); setMisses(0); setNearMisses(0); setBossHits(0); setPose('wiggle'); setPosition(START_POSITION);
     setPhaseBehavior(getLevel(safeLevel).behavior); setPhaseKey((value) => value + 1);
     setTaunt('잡을 수 있으면.'); setTauntKey((value) => value + 1); setAim(null); setFeedback(null); setAttention('idle'); setDodgeFx(null); setDodgeOpening(false);
-    setShowGameGuide(isFirstPlay);
+    setShowGameGuide(isFirstPlay); setTutorialRetry(false);
     setRemainingMs(getLevel(safeLevel).roundMs); setResult(null); setLossResult(null); setIsNewBest(false); setBestMessage(''); setScreen('game');
     setLeaderboardStatus('idle');
     track('game_start', { level: safeLevel, mode: nextMode, firstPlay: isFirstPlay });
@@ -351,7 +352,7 @@ function App() {
       practiceAttemptRef.current = true;
       startedAt.current = Date.now();
       moveStep.current = 0;
-      setShowGameGuide(false);
+      setShowGameGuide(false); setTutorialRetry(false);
       track('tutorial_start', { level: difficulty.id });
     }
     void haptic('tickWeak'); playSound('aim', soundEnabled);
@@ -396,7 +397,6 @@ function App() {
     if (!currentAim || !head || finishedRef.current) { clearAim(); return; }
     const isPracticeAttempt = practiceAttemptRef.current;
     practiceAttemptRef.current = false;
-    if (isPracticeAttempt) safeStorageSet(FIRST_PLAY_KEY, 'seen');
     const nextAttempts = attemptsRef.current + 1;
     const catX = head.left + head.width / 2;
     const catY = head.top + head.height / 2;
@@ -414,13 +414,21 @@ function App() {
     clearAim();
     window.clearTimeout(dodgeOpeningTimerRef.current); dodgeOpeningUntilRef.current = 0; setDodgeOpening(false);
 
-    if (distance <= hitRadius && !validCatchGesture) {
+    if (!validCatchGesture) {
+      if (isPracticeAttempt) {
+        startedAt.current = Date.now();
+        setRemainingMs(difficulty.roundMs);
+        setShowGameGuide(true);
+        setTutorialRetry(true);
+      }
       setTaunt('탭 말고, 쫓아와.'); setTauntKey((value) => value + 1);
-      setFeedback({ key: Date.now(), text: '꾹 누르고 쫓아와!', near: true });
+      setFeedback({ key: Date.now(), text: isPracticeAttempt ? '괜찮아, 다시 연습!' : '꾹 누르고 쫓아와!', near: true });
       void haptic('basicWeak'); playSound('miss', soundEnabled);
-      track('invalid_tap', { level: difficulty.id, heldMs, traveledPx: Math.round(currentAim.traveledPx), mode });
+      track('invalid_tap', { level: difficulty.id, heldMs, traveledPx: Math.round(currentAim.traveledPx), mode, tutorial: isPracticeAttempt });
       return;
     }
+
+    if (isPracticeAttempt) safeStorageSet(FIRST_PLAY_KEY, 'seen');
 
     if (distance <= hitRadius) {
       attemptsRef.current = nextAttempts; setAttempts(nextAttempts);
@@ -592,7 +600,7 @@ function App() {
           {aim && <div className={`catch-reticle ${attention === 'danger' ? 'is-danger' : ''} ${[difficulty.behavior, difficulty.secondaryBehavior].some((behavior) => ['blink', 'mirror', 'overlord'].includes(behavior)) ? 'is-warped' : ''}`} style={{ left: aim.x, top: aim.y }}><span>{attention === 'danger' ? '지금 떼면 잡는다' : '머리까지 쫓기'}</span></div>}
           {dodgeFx && <div key={`dodge-${dodgeFx.key}`} className="dodge-fx" style={{ left: `${dodgeFx.x}%`, top: `${dodgeFx.y}%` }}><i /><i /><strong>{dodgeFx.label}</strong></div>}
           {feedback && <div key={`feedback-${feedback.key}`} className={`catch-feedback ${feedback.near ? 'is-near' : ''}`} role="status" aria-live="polite">{feedback.text}</div>}
-          {showGameGuide && <div className="gesture-coach" aria-label="첫 플레이 안내"><span>☝</span><strong>여기부터 꾹 누른 채<br />고양이 머리를 쫓아가세요</strong><small>첫 실패는 시간·기회 차감 없음</small></div>}
+          {showGameGuide && <div className="gesture-coach" aria-label="첫 플레이 안내"><span>☝</span><strong>{tutorialRetry ? <>짧게 탭하면 안 잡혀요<br />꾹 누른 채 머리까지 쫓기</> : <>여기부터 꾹 누른 채<br />고양이 머리를 쫓아가세요</>}</strong><small>{tutorialRetry ? '다시 해도 시간·기회 차감 없음' : '첫 실패는 시간·기회 차감 없음'}</small></div>}
           <div className="field-dots" aria-hidden="true"><i /><i /><i /><i /></div>
         </div><p className={`game-tip ${(difficulty.hitsRequired ?? 1) > 1 ? 'is-boss-tip' : ''}`}>{(difficulty.hitsRequired ?? 1) > 1 ? `보스전 · 머리를 ${difficulty.hitsRequired}번 잡아야 승리 · 빗나가면 기회 차감` : '꾹 누르고 쫓다가 머리에서 떼기 · 놓치면 기회 1개 차감'}</p>
       </section>}

@@ -199,8 +199,11 @@ button:focus-visible { outline: 4px solid #3b82f6; outline-offset: 3px; }
 .dodge-fx i { position: absolute; left: 12px; right: 12px; top: 34px; height: 5px; border-radius: 99px; background: var(--coral); transform: rotate(-24deg); }.dodge-fx i + i { top: 54px; left: 28px; right: 0; transform: rotate(-16deg); background: var(--yellow); }
 .dodge-fx strong { position: absolute; right: -12px; top: 2px; color: var(--coral); font: 700 25px 'Gaegu',cursive; text-shadow: 2px 2px 0 #fff; rotate: 8deg; }
 .gesture-coach { position: absolute; inset: 0; z-index: 16; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; background: rgba(255,248,231,.78); pointer-events: none; text-align: center; }
-.gesture-coach span { display: grid; place-items: center; width: 72px; height: 72px; border: 3px solid var(--ink); border-radius: 50%; background: #fff; box-shadow: 4px 5px 0 var(--ink); font-size: 36px; animation: coachFinger .8s ease-in-out infinite alternate; }.gesture-coach strong { font: 700 18px/1.35 'Gaegu',cursive; }
+.gesture-coach span { display: grid; place-items: center; width: 72px; height: 72px; border: 3px solid var(--ink); border-radius: 50%; background: #fff; box-shadow: 4px 5px 0 var(--ink); font-size: 36px; position: relative; animation: coachChase 1.15s cubic-bezier(.45,0,.25,1) infinite alternate; }
+.gesture-coach span::after { content: '꾹'; position: absolute; right: -14px; top: -10px; padding: 3px 6px; border: 2px solid var(--ink); border-radius: 99px; background: var(--coral); color: #fff; font: 700 11px 'Gaegu',cursive; }
+.gesture-coach strong { font: 700 18px/1.35 'Gaegu',cursive; }
 .gesture-coach small { padding: 5px 9px; border-radius: 99px; background: var(--yellow); color: var(--ink); font-size: 10px; font-weight: 900; }
+@keyframes coachChase { from { transform: translate(-34px,18px) rotate(-8deg); } to { transform: translate(34px,-18px) rotate(9deg); } }
 .catch-feedback { position: absolute; left: 50%; top: 48%; width: calc(100% - 40px); translate: -50% -50%; z-index: 15; color: var(--ink); font: 700 clamp(23px, 8vw, 31px) 'Gaegu', cursive; text-align: center; text-shadow: 2px 2px 0 #fff, -2px -2px 0 #fff; pointer-events: none; animation: feedbackPop .55s ease-out both; }
 .catch-feedback.is-near { color: var(--coral); }
 @keyframes reticleLock { to { scale: .92; rotate: 4deg; } }

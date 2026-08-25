@@ -46,6 +46,7 @@ assert.deepEqual(sanitizeLevelBests({ 2: { elapsedMs: 5000, attempts: 2, accurac
 assert.equal(sanitizeDailyBest({ date: 'nope', score: 1 }), null, '깨진 오늘 최고 기록은 무시해야 합니다.');
 assert.equal(sanitizeDailyBest({ date: '2026-02-31', score: 80_000, elapsedMs: 5000, attempts: 1, level: 5 }), null, '달력에 없는 날짜는 기록으로 복구하면 안 됩니다.');
 assert.equal(isCatchGesture(80, 80), false, '빠른 탭으로는 잡히면 안 됩니다.');
+assert.equal(isCatchGesture(80, 0), false, '빈 공간의 짧은 탭도 실제 시도로 세면 안 됩니다.');
 assert.equal(isCatchGesture(300, 8), false, '머리 위에서 누르고만 있어도 잡히면 안 됩니다.');
 assert.equal(isCatchGesture(220, 48), true, '누른 채 실제로 쫓아온 손만 포획할 수 있어야 합니다.');
 assert.equal(distanceFromCatch(72, 50), 22, '근접도는 머리 중심이 아니라 성공 판정선까지의 부족 거리여야 합니다.');
