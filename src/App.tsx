@@ -12,7 +12,7 @@ import type { GameLoss, GameMode, GameResult } from './types';
 import { calculateDailyScore, DAILY_BEST_KEY, getDailyChallenge, readDailyBest } from './daily';
 import { haptic, pauseAudio, playSound } from './feedback';
 import { openLeaderboard, submitDailyScore } from './gameCenter';
-import { track } from './telemetry';
+import { track, trackScreen } from './telemetry';
 import type { CatBehavior } from './levels';
 import { challengeDelta, parseChallengeTarget, type ChallengeTarget } from './challenge';
 import { LEVEL_BESTS_KEY, readLevelBests, recordLevelBest } from './records';
@@ -131,6 +131,7 @@ function App() {
   const practiceAttemptRef = useRef(false);
   const urgencySecondRef = useRef(0);
   const toastTimerRef = useRef(0);
+  const lastTrackedScreenRef = useRef('');
   const difficulty = getLevel(activeLevel);
   const selectedDifficulty = getLevel(selectedLevel);
 
@@ -141,7 +142,7 @@ function App() {
   }, [caughtLevels]);
   useEffect(() => { safeStorageSet(PROGRESS_KEY, String(unlockedLevel)); }, [unlockedLevel]);
   useEffect(() => { safeStorageSet(SELECTED_LEVEL_KEY, String(selectedLevel)); }, [selectedLevel]);
-  useEffect(() => { safeStorageSet(SOUND_KEY, soundEnabled ? 'on' : 'off'); track('sound_toggle', { enabled: soundEnabled }); }, [soundEnabled]);
+  useEffect(() => { safeStorageSet(SOUND_KEY, soundEnabled ? 'on' : 'off'); }, [soundEnabled]);
   useEffect(() => { safeStorageSet(LEVEL_BESTS_KEY, JSON.stringify(levelBests)); }, [levelBests]);
   useEffect(() => { safeStorageSet(DAILY_HISTORY_KEY, JSON.stringify(dailyHistory)); }, [dailyHistory]);
   useEffect(() => {
@@ -155,6 +156,12 @@ function App() {
       window.history.pushState({ hachanApp: true }, '', window.location.href);
     }
   }, [screen]);
+  useEffect(() => {
+    const key = screen === 'game' || screen === 'result' || screen === 'loss' ? `${screen}:${mode}:${activeLevel}` : screen;
+    if (lastTrackedScreenRef.current === key) return;
+    lastTrackedScreenRef.current = key;
+    trackScreen(screen, screen === 'game' || screen === 'result' || screen === 'loss' ? { mode, level: activeLevel } : {});
+  }, [screen, mode, activeLevel]);
   useEffect(() => {
     window.history.replaceState({ hachanRoot: true }, '', window.location.href);
     const handleBack = () => {
@@ -256,6 +263,7 @@ function App() {
 
   function startGame(levelId = selectedLevel, nextMode: GameMode = 'campaign') {
     const safeLevel = nextMode === 'daily' || nextMode === 'challenge' ? clamp(levelId, 1, LEVELS.length) : Math.min(levelId, unlockedLevel, LEVELS.length);
+    const isFirstPlay = nextMode === 'campaign' && safeStorageGet(FIRST_PLAY_KEY) !== 'seen';
     setActiveLevel(safeLevel);
     if (nextMode === 'campaign') setSelectedLevel(safeLevel);
     setMode(nextMode);
@@ -266,9 +274,10 @@ function App() {
     setAttempts(0); setMisses(0); setNearMisses(0); setBossHits(0); setPose('wiggle'); setPosition(START_POSITION);
     setPhaseBehavior(getLevel(safeLevel).behavior); setPhaseKey((value) => value + 1);
     setTaunt('잡을 수 있으면.'); setTauntKey((value) => value + 1); setAim(null); setFeedback(null); setAttention('idle'); setDodgeFx(null);
-    setShowGameGuide(nextMode === 'campaign' && safeStorageGet(FIRST_PLAY_KEY) !== 'seen');
+    setShowGameGuide(isFirstPlay);
     setRemainingMs(getLevel(safeLevel).roundMs); setResult(null); setLossResult(null); setIsNewBest(false); setBestMessage(''); setScreen('game');
-    track('game_start', { level: safeLevel, mode: nextMode });
+    track('game_start', { level: safeLevel, mode: nextMode, firstPlay: isFirstPlay });
+    if (isFirstPlay) track('tutorial_impression', { level: safeLevel });
   }
 
   function pointInField(clientX: number, clientY: number) {
@@ -322,8 +331,8 @@ function App() {
       practiceAttemptRef.current = true;
       startedAt.current = Date.now();
       moveStep.current = 0;
-      safeStorageSet(FIRST_PLAY_KEY, 'seen');
       setShowGameGuide(false);
+      track('tutorial_start', { level: difficulty.id });
     }
     void haptic('tickWeak'); playSound('aim', soundEnabled);
   }
@@ -352,12 +361,20 @@ function App() {
 
   function clearAim() { aimRef.current = null; setAim(null); setAttention('idle'); }
 
+  function cancelAim() {
+    const wasPractice = practiceAttemptRef.current;
+    practiceAttemptRef.current = false;
+    clearAim();
+    if (wasPractice) setShowGameGuide(true);
+  }
+
   function handleAimRelease(event: React.PointerEvent<HTMLDivElement>) {
     const currentAim = aimRef.current;
     const head = headRef.current?.getBoundingClientRect();
     if (!currentAim || !head || finishedRef.current) { clearAim(); return; }
     const isPracticeAttempt = practiceAttemptRef.current;
     practiceAttemptRef.current = false;
+    if (isPracticeAttempt) safeStorageSet(FIRST_PLAY_KEY, 'seen');
     const nextAttempts = attemptsRef.current + 1;
     const catX = head.left + head.width / 2;
     const catY = head.top + head.height / 2;
@@ -419,7 +436,7 @@ function App() {
         }
         void submitDailyScore(score).then((success) => track('leaderboard_submit', { score, success }));
       }
-      track('game_catch', { level: difficulty.id, mode, elapsedMs, attempts: nextAttempts, score: score ?? 0 });
+      track('game_catch', { level: difficulty.id, mode, elapsedMs, attempts: nextAttempts, score: score ?? 0, tutorial: isPracticeAttempt });
       void haptic(difficulty.id === LEVELS.length ? 'confetti' : 'success'); playSound('catch', soundEnabled);
       window.setTimeout(() => setScreen(difficulty.id === LEVELS.length && mode === 'campaign' ? 'ending' : 'result'), 500);
       return;
@@ -461,6 +478,14 @@ function App() {
     toastTimerRef.current = window.setTimeout(() => setToast(''), 2600);
   }
 
+  function toggleSound() {
+    const next = !soundEnabled;
+    setSoundEnabled(next);
+    track('sound_toggle', { enabled: next });
+    void haptic('tickWeak');
+    playSound('aim', next);
+  }
+
   async function handleSave() {
     if (!result || busy) return;
     setBusy('save');
@@ -498,7 +523,7 @@ function App() {
 
   return (
     <main className="app-shell">
-      <header className="app-header"><button className="wordmark" onClick={() => setScreen('home')} aria-label="홈으로">하찮냥<span>˙</span></button><div className="header-actions"><button className="sound-toggle" onClick={() => setSoundEnabled((value) => !value)} aria-label={soundEnabled ? '소리 끄기' : '소리 켜기'} aria-pressed={soundEnabled}>{soundEnabled ? '♪' : '×'}</button><button className="collection-link" onClick={() => setScreen('collection')} aria-label={`도감, 잡은 고양이 ${collectionCount}마리`}>도감 <strong>{collectionCount}</strong></button></div></header>
+      <header className="app-header"><button className="wordmark" onClick={() => setScreen('home')} aria-label="홈으로">하찮냥<span>˙</span></button><div className="header-actions"><button className="sound-toggle" onClick={toggleSound} aria-label={soundEnabled ? '소리 끄기' : '소리 켜기'} aria-pressed={soundEnabled}>{soundEnabled ? '♪' : '×'}</button><button className="collection-link" onClick={() => setScreen('collection')} aria-label={`도감, 잡은 고양이 ${collectionCount}마리`}>도감 <strong>{collectionCount}</strong></button></div></header>
 
       {screen === 'home' && <section className="home-screen page-enter">
         <div className="home-copy"><span className="kicker">{incomingChallenge ? incomingChallenge.source === 'loss' ? '친구가 복수를 부탁함' : '피할 수 없는 기록 도착' : '잡으면 이기고, 놓치면 놀림받음'}</span><h1>{incomingChallenge ? <>친구 기록이,<br /><em>좀 건방지네?</em></> : <>이 고양이,<br /><em>한 번 잡아볼래?</em></>}</h1><p>{incomingChallenge ? '같은 고양이, 같은 규칙. 이번엔 당신 차례입니다.' : '꾹 누른 채 쫓아가세요. 머리에 닿았을 때 손을 떼면 성공.'}</p></div>
@@ -519,7 +544,7 @@ function App() {
           {(difficulty.hitsRequired ?? 1) > 1 && <div className="boss-status"><span>명중 {bossHits}/{difficulty.hitsRequired}</span><div className="boss-lives" aria-label={`남은 명중 ${(difficulty.hitsRequired ?? 1) - bossHits}`}>{Array.from({ length: difficulty.hitsRequired ?? 1 }, (_, index) => <i key={index} className={index < bossHits ? 'is-broken' : ''}>♛</i>)}</div></div>}</div>
           <div className="round-status"><div><span>남은 시간</span><strong>{(remainingMs / 1000).toFixed(1)}s</strong></div><div className="fatigue-track" role="progressbar" aria-label="남은 시간" aria-valuemin={0} aria-valuemax={15} aria-valuenow={Math.ceil(remainingMs / 1000)}><i style={{ width: `${timeProgress}%` }} /></div></div>
         </div>
-        <div ref={fieldRef} className={`game-field ${aim ? 'is-aiming' : ''} ${attention === 'danger' ? 'is-danger' : ''} ${result ? 'is-captured' : ''}`} onPointerDown={handleAimStart} onPointerMove={handleAimMove} onPointerUp={handleAimRelease} onPointerCancel={clearAim} onLostPointerCapture={clearAim} aria-label="고양이 잡기 구역">
+        <div ref={fieldRef} className={`game-field ${aim ? 'is-aiming' : ''} ${attention === 'danger' ? 'is-danger' : ''} ${result ? 'is-captured' : ''}`} onPointerDown={handleAimStart} onPointerMove={handleAimMove} onPointerUp={handleAimRelease} onPointerCancel={cancelAim} onLostPointerCapture={cancelAim} aria-label="고양이 잡기 구역">
           <div key={`phase-${phaseKey}`} className="phase-badge"><span>{mode === 'daily' ? '오늘의 움직임' : mode === 'challenge' ? '친구가 본 움직임' : '지금은'}</span><strong>{BEHAVIOR_GUIDES[phaseBehavior].label}</strong><small>{BEHAVIOR_GUIDES[phaseBehavior].hint}</small></div>
           <div key={`flash-${phaseKey}`} className="phase-flash" aria-hidden="true" />
           <div key={`taunt-${tauntKey}`} className="taunt-bubble" style={{ left: `${position.x}%`, top: `calc(${position.y}% - 134px)` }}>{taunt}</div>

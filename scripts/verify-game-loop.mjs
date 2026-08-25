@@ -11,6 +11,7 @@ import { averageHitAccuracy, getCatchMoment } from '../src/resultMoment.ts';
 import { getDailyStreak, getWeeklyBest, recordDailyScore, sanitizeDailyHistory, weekStart } from '../src/dailyProgress.ts';
 import { normalizeLeaderboardScore } from '../src/gameCenter.ts';
 import { safeStorageGet, safeStorageSet } from '../src/storage.ts';
+import { analyticsKindFor } from '../src/telemetry.ts';
 
 const result = { level: 7, elapsedMs: 3240, attempts: 2, accuracy: 91, grade: 'A', levelName: '깜빡냥', nearMisses: 1, verdict: '', reward: {}, mode: 'challenge' };
 const catchLink = createCatchChallengeDeepLink(result);
@@ -66,5 +67,8 @@ assert.equal(normalizeLeaderboardScore(Number.POSITIVE_INFINITY), 0, '유효하�
 assert.equal(normalizeLeaderboardScore(120_000), 100_000, '리더보드 점수는 계산 가능한 최대값을 넘으면 안 됩니다.');
 assert.equal(safeStorageGet('missing'), null, '저장소가 없는 환경에서도 읽기가 앱을 중단하면 안 됩니다.');
 assert.equal(safeStorageSet('missing', 'value'), false, '저장소가 없는 환경에서는 실패를 안전하게 알려야 합니다.');
+assert.equal(analyticsKindFor('game_start'), 'click', '사용자가 시작한 행동은 클릭 이벤트로 전송해야 합니다.');
+assert.equal(analyticsKindFor('tutorial_start'), 'click', '튜토리얼 조작 시작은 클릭 이벤트로 전송해야 합니다.');
+assert.equal(analyticsKindFor('game_catch'), 'impression', '게임 결과는 노출 이벤트로 전송해야 합니다.');
 
-console.log('✓ challenge links, fair scoring, records, and tension feedback verified');
+console.log('✓ challenge links, fair scoring, records, tension feedback, and analytics routing verified');
