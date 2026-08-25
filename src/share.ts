@@ -153,7 +153,7 @@ async function shareWithFallback(title: string, message: string, webUrl: string,
 
 export async function shareChallenge(result: GameResult): Promise<ShareOutcome> {
   const moment = getCatchMoment(result, getLevel(result.level).hitsRequired ?? 1);
-  const message = `[${moment.label}] Lv.${result.level} ${result.levelName}, ${(result.elapsedMs / 1000).toFixed(1)}초 만에 잡음.\n이 기록 넘을 수 있겠어? 😼`;
+  const message = `[${moment.label}] Lv.${result.level} ${result.levelName}, ${(result.elapsedMs / 1000).toFixed(1)}초 · ${result.attempts}번 만에 잡음.\n이 기록 넘을 수 있겠어? 😼`;
   const webUrl = createCatchChallengeWebUrl(result);
   return shareWithFallback('하찮냥', message, webUrl, createCatchChallengeDeepLink(result));
 }

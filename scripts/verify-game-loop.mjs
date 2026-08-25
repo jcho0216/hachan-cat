@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { challengeDelta, createCatchChallengeDeepLink, createCatchChallengeWebUrl, createLossChallengeDeepLink, createLossChallengeWebUrl, parseChallengeTarget } from '../src/challenge.ts';
+import { challengeDelta, compareChallengeResult, createCatchChallengeDeepLink, createCatchChallengeWebUrl, createLossChallengeDeepLink, createLossChallengeWebUrl, parseChallengeTarget } from '../src/challenge.ts';
 import { calculateDailyScore } from '../src/scoring.ts';
 import { isBetterResult, recordLevelBest, sanitizeLevelBests } from '../src/records.ts';
 import { DEFAULT_START_LEVEL, mapLegacyLevel, nextUnlockedLevel, resolveInitialSelectedLevel, sanitizeCaughtLevels, sanitizeLevelId } from '../src/progress.ts';
@@ -24,7 +24,16 @@ assert.ok(createCatchChallengeWebUrl(result).startsWith('https://hachan-cat.verc
 assert.ok(createLossChallengeWebUrl({ level: 9, levelName: '철벽냥', reason: 'misses', elapsedMs: 8000, attempts: 5, nearMisses: 2, closestDistance: 30 }).includes('level=9'), '웹 패배 공유도 복수전으로 이어져야 합니다.');
 assert.deepEqual(parseChallengeTarget('?level=7&time=3240&attempts=2&from=catch'), { level: 7, elapsedMs: 3240, attempts: 2, source: 'catch' });
 assert.equal(parseChallengeTarget('?level=99&time=1'), null, '잘못된 도전 링크는 무시해야 합니다.');
+assert.equal(parseChallengeTarget('?level=7.4&time=3240&attempts=2'), null, '소수 레벨을 반올림해 도전으로 받아들이면 안 됩니다.');
+assert.equal(parseChallengeTarget('?level=7&from=catch'), null, '성공 기록 도전에는 시간과 시도 수가 모두 필요합니다.');
+assert.equal(parseChallengeTarget('?level=10&time=600&attempts=4'), null, '보스 필수 명중보다 빠른 불가능 기록은 거부해야 합니다.');
+assert.equal(parseChallengeTarget('?level=10&time=5000&attempts=9'), null, '기회 규칙상 성공할 수 없는 시도 수는 거부해야 합니다.');
+assert.deepEqual(parseChallengeTarget('?level=9&from=loss&time=1&attempts=99'), { level: 9, source: 'loss' }, '패배 복수전은 조작된 성공 기록 값을 무시해야 합니다.');
 assert.equal(challengeDelta(3000, { level: 7, elapsedMs: 3240, attempts: 2, source: 'catch' }), -240, '친구 기록 차이를 계산해야 합니다.');
+assert.equal(compareChallengeResult(3000, 3, { level: 7, elapsedMs: 3240, attempts: 2, source: 'catch' })?.outcome, 'won', '더 빠르면 친구 기록을 이겨야 합니다.');
+assert.equal(compareChallengeResult(3240, 1, { level: 7, elapsedMs: 3240, attempts: 2, source: 'catch' })?.outcome, 'won', '같은 시간이면 적은 시도 수가 이겨야 합니다.');
+assert.equal(compareChallengeResult(3240, 2, { level: 7, elapsedMs: 3240, attempts: 2, source: 'catch' })?.outcome, 'tied', '시간과 시도 수가 같으면 동률이어야 합니다.');
+assert.equal(compareChallengeResult(3240, 3, { level: 7, elapsedMs: 3240, attempts: 2, source: 'catch' })?.outcome, 'lost', '같은 시간이면 많은 시도 수가 져야 합니다.');
 
 const cleanScore = calculateDailyScore(6000, 1, 5, 1);
 const missedScore = calculateDailyScore(6000, 2, 5, 1);
@@ -99,8 +108,9 @@ assert.equal(analyticsKindFor('loss_meme_share'), 'click', '패배 카드 공유
 assert.equal(analyticsKindFor('game_catch'), 'impression', '게임 결과는 노출 이벤트로 전송해야 합니다.');
 assert.equal(getResultPrimaryAction('campaign', 4, 10, null), 'next', '캠페인 승리 후에는 다음 고양이가 주 행동이어야 합니다.');
 assert.equal(getResultPrimaryAction('daily', 6, 10, null), 'retry', '오늘의 한 판은 기록 단축 재도전이 주 행동이어야 합니다.');
-assert.equal(getResultPrimaryAction('challenge', 7, 10, 240), 'retry', '친구보다 느리면 기록 재도전이 주 행동이어야 합니다.');
-assert.equal(getResultPrimaryAction('challenge', 7, 10, -240), 'share', '친구 기록을 깨면 도발 공유가 주 행동이어야 합니다.');
+assert.equal(getResultPrimaryAction('challenge', 7, 10, 'lost'), 'retry', '친구보다 느리면 기록 재도전이 주 행동이어야 합니다.');
+assert.equal(getResultPrimaryAction('challenge', 7, 10, 'tied'), 'retry', '친구와 동률이면 한 판 더가 주 행동이어야 합니다.');
+assert.equal(getResultPrimaryAction('challenge', 7, 10, 'won'), 'share', '친구 기록을 깨면 도발 공유가 주 행동이어야 합니다.');
 assert.equal(getResultPrimaryAction('campaign', 10, 10, null), 'share', '최종 보스 뒤에는 획득 카드를 자랑하도록 이어져야 합니다.');
 
 console.log('✓ challenge links, fair scoring, records, tension feedback, and analytics routing verified');

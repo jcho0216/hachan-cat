@@ -7,7 +7,12 @@ export type ChallengeTarget = {
   source: 'catch' | 'loss';
 };
 
-const clampInteger = (value: number, min: number, max: number) => Math.min(max, Math.max(min, Math.round(value)));
+export type ChallengeComparison = {
+  outcome: 'won' | 'tied' | 'lost';
+  timeDelta: number;
+  attemptDelta: number;
+};
+
 const PUBLIC_APP_URL = 'https://hachan-cat.vercel.app/';
 
 function normalizedParams(search: string) {
@@ -24,14 +29,21 @@ function normalizedParams(search: string) {
 export function parseChallengeTarget(search: string): ChallengeTarget | null {
   const params = normalizedParams(search);
   const level = Number(params.get('level'));
-  if (!Number.isFinite(level) || level < 1 || level > 10) return null;
+  if (!Number.isInteger(level) || level < 1 || level > 10) return null;
+  const source = params.get('from') === 'loss' ? 'loss' : 'catch';
+  if (source === 'loss') return { level, source };
   const rawTime = Number(params.get('time'));
   const rawAttempts = Number(params.get('attempts'));
+  const requiredHits = level === 10 ? 4 : level === 9 ? 2 : 1;
+  const minimumTime = Math.max(300, requiredHits * 250);
+  const maximumAttempts = requiredHits + 4;
+  if (!Number.isInteger(rawTime) || rawTime < minimumTime || rawTime > 15_000
+    || !Number.isInteger(rawAttempts) || rawAttempts < requiredHits || rawAttempts > maximumAttempts) return null;
   return {
-    level: clampInteger(level, 1, 10),
-    elapsedMs: Number.isFinite(rawTime) && rawTime >= 300 && rawTime <= 15_000 ? clampInteger(rawTime, 300, 15_000) : undefined,
-    attempts: Number.isFinite(rawAttempts) && rawAttempts >= 1 && rawAttempts <= 20 ? clampInteger(rawAttempts, 1, 20) : undefined,
-    source: params.get('from') === 'loss' ? 'loss' : 'catch',
+    level,
+    elapsedMs: rawTime,
+    attempts: rawAttempts,
+    source,
   };
 }
 
@@ -66,4 +78,14 @@ export function createLossChallengeWebUrl(loss: GameLoss) {
 
 export function challengeDelta(elapsedMs: number, target: ChallengeTarget | null) {
   return target?.elapsedMs === undefined ? null : elapsedMs - target.elapsedMs;
+}
+
+export function compareChallengeResult(elapsedMs: number, attempts: number, target: ChallengeTarget | null): ChallengeComparison | null {
+  if (target?.elapsedMs === undefined || target.attempts === undefined) return null;
+  const timeDelta = Math.round(elapsedMs) - target.elapsedMs;
+  const attemptDelta = attempts - target.attempts;
+  const outcome = timeDelta < 0 || timeDelta === 0 && attemptDelta < 0
+    ? 'won'
+    : timeDelta === 0 && attemptDelta === 0 ? 'tied' : 'lost';
+  return { outcome, timeDelta, attemptDelta };
 }

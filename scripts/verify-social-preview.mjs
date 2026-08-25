@@ -42,5 +42,6 @@ assert.ok(shareSource.includes("https://hachan-cat.vercel.app/og-thumbnail.png?v
 assert.ok(shareSource.includes('export function createMemeSvg'), '저장 카드 마크업은 독립적으로 검증 가능한 함수여야 합니다.');
 assert.ok(shareSource.includes('오늘의 ${escapeXml(moment.label)}'), '저장 카드에 포획 순간 이름이 포함되어야 합니다.');
 assert.ok(shareSource.includes('[${moment.label}] Lv.${result.level}'), '공유 문구에 포획 순간 이름이 포함되어야 합니다.');
+assert.ok(shareSource.includes('${result.attempts}번 만에 잡음'), '친구 도전 공유 문구에 동률 판정용 시도 수가 포함되어야 합니다.');
 
 console.log('✓ 1200×630 social preview and Open Graph metadata verified');
