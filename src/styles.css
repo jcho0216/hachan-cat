@@ -196,7 +196,7 @@ button:focus-visible { outline: 4px solid #3b82f6; outline-offset: 3px; }
 .gesture-coach { position: absolute; inset: 0; z-index: 16; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; background: rgba(255,248,231,.78); pointer-events: none; text-align: center; }
 .gesture-coach span { display: grid; place-items: center; width: 72px; height: 72px; border: 3px solid var(--ink); border-radius: 50%; background: #fff; box-shadow: 4px 5px 0 var(--ink); font-size: 36px; animation: coachFinger .8s ease-in-out infinite alternate; }.gesture-coach strong { font: 700 18px/1.35 'Gaegu',cursive; }
 .gesture-coach small { padding: 5px 9px; border-radius: 99px; background: var(--yellow); color: var(--ink); font-size: 10px; font-weight: 900; }
-.catch-feedback { position: absolute; left: 50%; top: 48%; translate: -50% -50%; z-index: 15; color: var(--ink); font: 700 31px 'Gaegu', cursive; text-shadow: 2px 2px 0 #fff, -2px -2px 0 #fff; pointer-events: none; animation: feedbackPop .55s ease-out both; }
+.catch-feedback { position: absolute; left: 50%; top: 48%; width: calc(100% - 40px); translate: -50% -50%; z-index: 15; color: var(--ink); font: 700 clamp(23px, 8vw, 31px) 'Gaegu', cursive; text-align: center; text-shadow: 2px 2px 0 #fff, -2px -2px 0 #fff; pointer-events: none; animation: feedbackPop .55s ease-out both; }
 .catch-feedback.is-near { color: var(--coral); }
 @keyframes reticleLock { to { scale: .92; rotate: 4deg; } }
 @keyframes feedbackPop { from { opacity: 0; scale: .65; } 30% { opacity: 1; scale: 1.14; } to { opacity: 0; translate: -50% -78%; } }

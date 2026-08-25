@@ -17,7 +17,7 @@ import type { CatBehavior } from './levels';
 import { challengeDelta, parseChallengeTarget, type ChallengeTarget } from './challenge';
 import { LEVEL_BESTS_KEY, readLevelBests, recordLevelBest } from './records';
 import { nextUnlockedLevel } from './progress';
-import { distanceFromCatch, isCatchGesture } from './inputRules';
+import { canReleaseToCatch, distanceFromCatch, isCatchGesture, isWithinReactiveRange, missDirection } from './inputRules';
 import { urgencySecondFor } from './timing';
 import { BEHAVIOR_GUIDES, phaseStepsFor } from './behaviorGuide';
 import { averageHitAccuracy, getCatchMoment } from './resultMoment';
@@ -316,6 +316,7 @@ function App() {
     setTaunt(difficulty.id >= 8 ? ['늦었어.', '그 손 다 보여.', '그것밖에 안되냐?', '한 번 더 와봐.'][moveStep.current % 4] : NEAR_TAUNTS[(moveStep.current + difficulty.id) % NEAR_TAUNTS.length]);
     setTauntKey((value) => value + 1);
     moveCatAway(clientX, clientY, forcedPose);
+    setAttention('watch');
     void haptic('wiggle'); playSound('near', soundEnabled);
     track('reactive_dodge', { level: difficulty.id, behavior: phaseBehavior, mode });
   }
@@ -350,10 +351,11 @@ function App() {
     const catY = head.top + head.height / 2;
     const distance = Math.hypot(event.clientX - catX, event.clientY - catY);
     const visualRadius = Math.min(head.width, head.height) * .48;
-    const dangerRadius = Math.min(difficulty.hitRadius, visualRadius) + 74;
-    const isDanger = distance <= dangerRadius;
-    setAttention(isDanger ? 'danger' : 'watch');
-    if (isDanger && !reactedToAimRef.current && Date.now() - previous.startedAt >= difficulty.dodgeDelay) {
+    const hitRadius = Math.min(difficulty.hitRadius, visualRadius);
+    const heldMs = Date.now() - nextAim.startedAt;
+    const canCatch = canReleaseToCatch(distance, hitRadius, heldMs, nextAim.traveledPx);
+    setAttention(canCatch ? 'danger' : 'watch');
+    if (isWithinReactiveRange(distance, hitRadius) && !reactedToAimRef.current && heldMs >= difficulty.dodgeDelay) {
       reactedToAimRef.current = true;
       triggerReactiveDodge(event.clientX, event.clientY);
     }
@@ -381,7 +383,10 @@ function App() {
     const distance = Math.hypot(event.clientX - catX, event.clientY - catY);
     const visualRadius = Math.min(head.width, head.height) * .48;
     const hitRadius = Math.min(difficulty.hitRadius, visualRadius);
-    closestDistanceRef.current = Math.min(closestDistanceRef.current, distanceFromCatch(distance, hitRadius));
+    const missDistance = distanceFromCatch(distance, hitRadius);
+    const direction = missDirection(event.clientX, event.clientY, catX, catY);
+    const directionPast = direction === '위' || direction === '아래' ? `${direction}였어` : `${direction}이었어`;
+    closestDistanceRef.current = Math.min(closestDistanceRef.current, missDistance);
     const accuracy = clamp(Math.round(100 - Math.max(0, distance - 8) * .85), 0, 100);
     const elapsedMs = Date.now() - startedAt.current;
     const heldMs = Date.now() - currentAim.startedAt;
@@ -448,10 +453,10 @@ function App() {
       startedAt.current = Date.now();
       setRemainingMs(difficulty.roundMs);
       setTaunt('연습은 끝. 이제 진짜야.'); setTauntKey((value) => value + 1);
-      setFeedback({ key: Date.now(), text: isNear ? '거의 맞았어 · 기회 유지' : '연습 끝 · 기회 유지', near: isNear });
+      setFeedback({ key: Date.now(), text: isNear ? `${direction} ${Math.ceil(missDistance)}px · 기회 유지` : `${directionPast} · 기회 유지`, near: isNear });
       moveCatAway(event.clientX, event.clientY);
       void haptic(isNear ? 'wiggle' : 'basicWeak'); playSound(isNear ? 'near' : 'miss', soundEnabled);
-      track('practice_attempt', { level: difficulty.id, near: isNear });
+      track('practice_attempt', { level: difficulty.id, near: isNear, direction, distance: Math.ceil(missDistance) });
       return;
     }
     attemptsRef.current = nextAttempts; setAttempts(nextAttempts);
@@ -460,10 +465,10 @@ function App() {
     missesRef.current = nextMisses; setMisses(nextMisses);
     const pool = isNear ? NEAR_TAUNTS : MISS_TAUNTS;
     setTaunt(pool[nextAttempts % pool.length]); setTauntKey((value) => value + 1);
-    setFeedback({ key: Date.now(), text: isNear ? '아깝다!' : '빗나감', near: isNear });
+    setFeedback({ key: Date.now(), text: isNear ? `${direction} ${Math.ceil(missDistance)}px만 더!` : `${directionPast}!`, near: isNear });
     moveCatAway(event.clientX, event.clientY);
     void haptic(isNear ? 'wiggle' : 'basicWeak'); playSound(isNear ? 'near' : 'miss', soundEnabled);
-    track('miss', { level: difficulty.id, near: isNear, mode });
+    track('miss', { level: difficulty.id, near: isNear, mode, direction, distance: Math.ceil(missDistance) });
     if (nextMisses >= difficulty.attemptsAllowed) {
       finishedRef.current = true;
       setLossResult({ level: difficulty.id, levelName: difficulty.name, reason: 'misses', elapsedMs, attempts: nextAttempts, nearMisses: nearMissesRef.current, closestDistance: closestDistanceRef.current, mode });

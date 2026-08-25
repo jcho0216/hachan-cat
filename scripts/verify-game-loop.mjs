@@ -3,7 +3,7 @@ import { challengeDelta, createCatchChallengeDeepLink, createCatchChallengeWebUr
 import { calculateDailyScore } from '../src/scoring.ts';
 import { isBetterResult, recordLevelBest } from '../src/records.ts';
 import { nextUnlockedLevel } from '../src/progress.ts';
-import { distanceFromCatch, isCatchGesture } from '../src/inputRules.ts';
+import { canReleaseToCatch, distanceFromCatch, isCatchGesture, isWithinReactiveRange, missDirection } from '../src/inputRules.ts';
 import { getClosenessLabel } from '../src/lossCopy.ts';
 import { urgencySecondFor } from '../src/timing.ts';
 import { getGrade } from '../src/data.ts';
@@ -43,6 +43,13 @@ assert.equal(isCatchGesture(300, 8), false, '머리 위에서 누르고만 있�
 assert.equal(isCatchGesture(220, 48), true, '누른 채 실제로 쫓아온 손만 포획할 수 있어야 합니다.');
 assert.equal(distanceFromCatch(72, 50), 22, '근접도는 머리 중심이 아니라 성공 판정선까지의 부족 거리여야 합니다.');
 assert.equal(distanceFromCatch(40, 50), 0, '성공 판정선 안쪽 거리는 0이어야 합니다.');
+assert.equal(canReleaseToCatch(50, 50, 220, 48), true, '성공 신호는 실제 포획 가능한 순간에 켜져야 합니다.');
+assert.equal(canReleaseToCatch(51, 50, 220, 48), false, '성공 반경 밖에서 성공 신호를 보여주면 안 됩니다.');
+assert.equal(canReleaseToCatch(40, 50, 80, 48), false, '유효한 추적 동작 전에는 성공 신호를 보여주면 안 됩니다.');
+assert.equal(isWithinReactiveRange(124, 50), true, '고양이는 성공 반경 바깥에서도 다가오는 손에 반응해야 합니다.');
+assert.equal(isWithinReactiveRange(125, 50), false, '멀리 있는 손에는 성급하게 반응하면 안 됩니다.');
+assert.equal(missDirection(20, 50, 60, 52), '오른쪽', '빗나간 손에서 고양이 방향을 안내해야 합니다.');
+assert.equal(missDirection(50, 80, 52, 40), '위', '세로 차이가 크면 위아래 방향을 안내해야 합니다.');
 assert.equal(urgencySecondFor(3001), 0, '막판 3초 전에는 긴급 상태가 아니어야 합니다.');
 assert.equal(urgencySecondFor(2999), 3, '막판 카운트다운은 3초부터 시작해야 합니다.');
 assert.equal(urgencySecondFor(1), 1, '마지막 순간까지 1초 긴급 상태를 유지해야 합니다.');
