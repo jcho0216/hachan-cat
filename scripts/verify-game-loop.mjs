@@ -10,6 +10,7 @@ import { getGrade } from '../src/data.ts';
 import { averageHitAccuracy, getCatchMoment } from '../src/resultMoment.ts';
 import { getDailyStreak, getWeeklyBest, recordDailyScore, sanitizeDailyHistory, weekStart } from '../src/dailyProgress.ts';
 import { normalizeLeaderboardScore } from '../src/gameCenter.ts';
+import { safeStorageGet, safeStorageSet } from '../src/storage.ts';
 
 const result = { level: 7, elapsedMs: 3240, attempts: 2, accuracy: 91, grade: 'A', levelName: '깜빡냥', nearMisses: 1, verdict: '', reward: {}, mode: 'challenge' };
 const catchLink = createCatchChallengeDeepLink(result);
@@ -63,5 +64,7 @@ assert.equal(recordDailyScore(dailyHistory, { ...dailyHistory[1], score: 80_000 
 assert.deepEqual(sanitizeDailyHistory([{ nope: true }]), [], '깨진 주간 기록은 안전하게 무시해야 합니다.');
 assert.equal(normalizeLeaderboardScore(Number.POSITIVE_INFINITY), 0, '유효하지 않은 점수는 제출하면 안 됩니다.');
 assert.equal(normalizeLeaderboardScore(120_000), 100_000, '리더보드 점수는 계산 가능한 최대값을 넘으면 안 됩니다.');
+assert.equal(safeStorageGet('missing'), null, '저장소가 없는 환경에서도 읽기가 앱을 중단하면 안 됩니다.');
+assert.equal(safeStorageSet('missing', 'value'), false, '저장소가 없는 환경에서는 실패를 안전하게 알려야 합니다.');
 
 console.log('✓ challenge links, fair scoring, records, and tension feedback verified');

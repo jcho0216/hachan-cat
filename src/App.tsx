@@ -22,6 +22,7 @@ import { urgencySecondFor } from './timing';
 import { BEHAVIOR_GUIDES, phaseStepsFor } from './behaviorGuide';
 import { averageHitAccuracy, getCatchMoment } from './resultMoment';
 import { DAILY_HISTORY_KEY, getDailyStreak, getWeeklyBest, readDailyHistory, recordDailyScore } from './dailyProgress';
+import { safeStorageGet, safeStorageSet } from './storage';
 
 type Screen = 'home' | 'levels' | 'game' | 'ending' | 'result' | 'loss' | 'collection';
 type Aim = MovementAim & { x: number; y: number; clientX: number; clientY: number; startedAt: number; traveledPx: number };
@@ -46,7 +47,7 @@ const formatSeconds = (elapsedMs: number) => `${(elapsedMs / 1000).toFixed(2)}�
 const mapLegacyLevel = (id: number) => clamp(Math.ceil(id / 2), 1, LEVELS.length);
 const readLegacyCaughtLevels = () => {
   try {
-    const legacy = JSON.parse(localStorage.getItem(LEGACY_CAUGHT_LEVELS_KEY) ?? '[]') as number[];
+    const legacy = JSON.parse(safeStorageGet(LEGACY_CAUGHT_LEVELS_KEY) ?? '[]') as number[];
     return Array.from(new Set(legacy.map(mapLegacyLevel)));
   } catch { return []; }
 };
@@ -57,21 +58,21 @@ function App() {
   const [misses, setMisses] = useState(0);
   const [nearMisses, setNearMisses] = useState(0);
   const [selectedLevel, setSelectedLevel] = useState(() => {
-    const saved = localStorage.getItem(SELECTED_LEVEL_KEY);
-    return saved ? clamp(Number(saved), 1, LEVELS.length) : mapLegacyLevel(Number(localStorage.getItem(LEGACY_SELECTED_LEVEL_KEY) ?? 1));
+    const saved = safeStorageGet(SELECTED_LEVEL_KEY);
+    return saved ? clamp(Number(saved), 1, LEVELS.length) : mapLegacyLevel(Number(safeStorageGet(LEGACY_SELECTED_LEVEL_KEY) ?? 1));
   });
   const [activeLevel, setActiveLevel] = useState(selectedLevel);
   const [unlockedLevel, setUnlockedLevel] = useState(() => {
-    const saved = localStorage.getItem(PROGRESS_KEY);
+    const saved = safeStorageGet(PROGRESS_KEY);
     if (saved) return clamp(Number(saved), 1, LEVELS.length);
     const migratedCaught = readLegacyCaughtLevels();
     if (migratedCaught.length) return Math.min(LEVELS.length, Math.max(...migratedCaught) + 1);
-    const legacyProgress = localStorage.getItem(LEGACY_PROGRESS_KEY);
+    const legacyProgress = safeStorageGet(LEGACY_PROGRESS_KEY);
     return legacyProgress ? mapLegacyLevel(Number(legacyProgress)) : 3;
   });
   const [caughtLevels, setCaughtLevels] = useState<number[]>(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem(CAUGHT_LEVELS_KEY) ?? '[]') as number[];
+      const saved = JSON.parse(safeStorageGet(CAUGHT_LEVELS_KEY) ?? '[]') as number[];
       if (saved.length) return saved;
     } catch { /* 기존 진행도에서 복구 */ }
     return readLegacyCaughtLevels();
@@ -87,12 +88,12 @@ function App() {
   const [result, setResult] = useState<GameResult | null>(null);
   const [lossResult, setLossResult] = useState<GameLoss | null>(null);
   const [collectionTab, setCollectionTab] = useState<'levels' | 'memes'>('levels');
-  const [collection, setCollection] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem(COLLECTION_KEY) ?? '[]'); } catch { return []; } });
+  const [collection, setCollection] = useState<string[]>(() => { try { return JSON.parse(safeStorageGet(COLLECTION_KEY) ?? '[]'); } catch { return []; } });
   const [busy, setBusy] = useState<'save' | 'share' | null>(null);
   const [mode, setMode] = useState<GameMode>('campaign');
   const [phaseBehavior, setPhaseBehavior] = useState<CatBehavior>(() => getLevel(selectedLevel).behavior);
   const [phaseKey, setPhaseKey] = useState(0);
-  const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem(SOUND_KEY) !== 'off');
+  const [soundEnabled, setSoundEnabled] = useState(() => safeStorageGet(SOUND_KEY) !== 'off');
   const [dailyBest, setDailyBest] = useState(readDailyBest);
   const [dailyHistory, setDailyHistory] = useState(() => {
     const history = readDailyHistory();
@@ -111,6 +112,8 @@ function App() {
   const daily = useMemo(() => getDailyChallenge(), []);
 
   const fieldRef = useRef<HTMLDivElement>(null);
+  const screenRef = useRef<Screen>('home');
+  const nestedHistoryRef = useRef(false);
   const headRef = useRef<SVGRectElement>(null);
   const startedAt = useRef(Date.now());
   const moveStep = useRef(0);
@@ -131,16 +134,41 @@ function App() {
   const difficulty = getLevel(activeLevel);
   const selectedDifficulty = getLevel(selectedLevel);
 
-  useEffect(() => { localStorage.setItem(COLLECTION_KEY, JSON.stringify(collection)); }, [collection]);
-  useEffect(() => { localStorage.setItem(CAUGHT_LEVELS_KEY, JSON.stringify(caughtLevels)); }, [caughtLevels]);
+  useEffect(() => { safeStorageSet(COLLECTION_KEY, JSON.stringify(collection)); }, [collection]);
+  useEffect(() => { safeStorageSet(CAUGHT_LEVELS_KEY, JSON.stringify(caughtLevels)); }, [caughtLevels]);
   useEffect(() => {
     setCollection((current) => Array.from(new Set([...current, ...caughtLevels.flatMap((id) => REWARDS[id - 1]?.id ?? [])])));
   }, [caughtLevels]);
-  useEffect(() => { localStorage.setItem(PROGRESS_KEY, String(unlockedLevel)); }, [unlockedLevel]);
-  useEffect(() => { localStorage.setItem(SELECTED_LEVEL_KEY, String(selectedLevel)); }, [selectedLevel]);
-  useEffect(() => { localStorage.setItem(SOUND_KEY, soundEnabled ? 'on' : 'off'); track('sound_toggle', { enabled: soundEnabled }); }, [soundEnabled]);
-  useEffect(() => { localStorage.setItem(LEVEL_BESTS_KEY, JSON.stringify(levelBests)); }, [levelBests]);
-  useEffect(() => { localStorage.setItem(DAILY_HISTORY_KEY, JSON.stringify(dailyHistory)); }, [dailyHistory]);
+  useEffect(() => { safeStorageSet(PROGRESS_KEY, String(unlockedLevel)); }, [unlockedLevel]);
+  useEffect(() => { safeStorageSet(SELECTED_LEVEL_KEY, String(selectedLevel)); }, [selectedLevel]);
+  useEffect(() => { safeStorageSet(SOUND_KEY, soundEnabled ? 'on' : 'off'); track('sound_toggle', { enabled: soundEnabled }); }, [soundEnabled]);
+  useEffect(() => { safeStorageSet(LEVEL_BESTS_KEY, JSON.stringify(levelBests)); }, [levelBests]);
+  useEffect(() => { safeStorageSet(DAILY_HISTORY_KEY, JSON.stringify(dailyHistory)); }, [dailyHistory]);
+  useEffect(() => {
+    screenRef.current = screen;
+    if (screen === 'home') {
+      if (nestedHistoryRef.current) { nestedHistoryRef.current = false; window.history.back(); }
+      return;
+    }
+    if (!nestedHistoryRef.current) {
+      nestedHistoryRef.current = true;
+      window.history.pushState({ hachanApp: true }, '', window.location.href);
+    }
+  }, [screen]);
+  useEffect(() => {
+    window.history.replaceState({ hachanRoot: true }, '', window.location.href);
+    const handleBack = () => {
+      const previousScreen = screenRef.current;
+      nestedHistoryRef.current = false;
+      if (previousScreen === 'home') return;
+      finishedRef.current = true;
+      aimRef.current = null;
+      setAim(null); setAttention('idle'); setScreen('home');
+      track('native_back', { from: previousScreen });
+    };
+    window.addEventListener('popstate', handleBack);
+    return () => window.removeEventListener('popstate', handleBack);
+  }, []);
   useEffect(() => { aimRef.current = aim; }, [aim]);
   useEffect(() => { positionRef.current = position; }, [position]);
   useEffect(() => {
@@ -232,7 +260,7 @@ function App() {
     setAttempts(0); setMisses(0); setNearMisses(0); setBossHits(0); setPose('wiggle'); setPosition(START_POSITION);
     setPhaseBehavior(getLevel(safeLevel).behavior); setPhaseKey((value) => value + 1);
     setTaunt('잡을 수 있으면.'); setTauntKey((value) => value + 1); setAim(null); setFeedback(null); setAttention('idle'); setDodgeFx(null);
-    setShowGameGuide(nextMode === 'campaign' && localStorage.getItem(FIRST_PLAY_KEY) !== 'seen');
+    setShowGameGuide(nextMode === 'campaign' && safeStorageGet(FIRST_PLAY_KEY) !== 'seen');
     setRemainingMs(getLevel(safeLevel).roundMs); setResult(null); setLossResult(null); setIsNewBest(false); setBestMessage(''); setScreen('game');
     track('game_start', { level: safeLevel, mode: nextMode });
   }
@@ -288,7 +316,7 @@ function App() {
       practiceAttemptRef.current = true;
       startedAt.current = Date.now();
       moveStep.current = 0;
-      localStorage.setItem(FIRST_PLAY_KEY, 'seen');
+      safeStorageSet(FIRST_PLAY_KEY, 'seen');
       setShowGameGuide(false);
     }
     void haptic('tickWeak'); playSound('aim', soundEnabled);
@@ -381,7 +409,7 @@ function App() {
         setDailyHistory((current) => recordDailyScore(current, nextDailyEntry));
         const best = readDailyBest();
         if (!best || best.date !== daily.date || score > best.score) {
-          localStorage.setItem(DAILY_BEST_KEY, JSON.stringify(nextDailyEntry)); setDailyBest(nextDailyEntry);
+          safeStorageSet(DAILY_BEST_KEY, JSON.stringify(nextDailyEntry)); setDailyBest(nextDailyEntry);
         }
         void submitDailyScore(score).then((success) => track('leaderboard_submit', { score, success }));
       }
