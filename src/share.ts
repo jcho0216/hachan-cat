@@ -1,6 +1,7 @@
 import { getLevel } from './levels';
 import type { GameLoss, GameResult } from './types';
 import { getLossCopy } from './lossCopy';
+import { createCardCatSvg } from './catAppearance';
 
 const escapeXml = (value: string) => value.replace(/[<>&'\"]/g, (char) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' })[char]!);
 
@@ -29,14 +30,7 @@ export async function createMemePng(result: GameResult): Promise<{ base64: strin
     <circle cx="540" cy="490" r="270" fill="${level.accent}"/>
     <text x="80" y="120" font-family="Arial,sans-serif" font-size="42" font-weight="700" fill="#202124">오늘의 잡기 기록</text>
     <text x="1000" y="120" text-anchor="end" font-family="Arial,sans-serif" font-size="30" fill="#6B645C">하찮냥</text>
-    <g transform="translate(310 220) scale(3.05)">
-      <path d="M31 54 24 14l35 19c10-4 22-4 32 0l35-19-7 41c8 9 12 21 12 34 0 35-25 57-56 57S19 124 19 89c0-14 4-26 12-35Z" fill="${level.fur}" stroke="#202124" stroke-width="5" stroke-linejoin="round"/>
-      <path d="m32 29 19 12-15 9ZM118 29l-19 12 15 9Z" fill="${level.accent}"/>
-      <path d="M42 80q11-9 22 0M88 80q11-9 22 0" fill="none" stroke="#202124" stroke-width="5" stroke-linecap="round"/>
-      <path d="m69 96 7 6 7-6" fill="${level.accent}" stroke="#202124" stroke-width="3"/>
-      <path d="M64 108q12 14 25 0" fill="none" stroke="#202124" stroke-width="4" stroke-linecap="round"/>
-      <g fill="none" stroke="#202124" stroke-width="6" stroke-linecap="round"><path d="M75 145q-10 26 0 42"/><path d="M70 157 42 176M79 157l29 16M75 186l-23 22M75 186l25 22"/></g>
-    </g>
+    ${createCardCatSvg(level, result.reward.face)}
     <text x="540" y="845" text-anchor="middle" font-family="Arial,sans-serif" font-size="44" font-weight="700" fill="#F45D4C">${title}</text>
     <text x="540" y="930" text-anchor="middle" font-family="Arial,sans-serif" font-size="82" font-weight="900" fill="#202124">${escapeXml(result.reward.name)}</text>
     <text x="540" y="990" text-anchor="middle" font-family="Arial,sans-serif" font-size="28" fill="#6B645C">${description}</text>
@@ -63,14 +57,7 @@ export async function createLossMemePng(loss: GameLoss): Promise<{ base64: strin
     <rect x="380" y="70" width="320" height="84" rx="18" fill="none" stroke="#FF6757" stroke-width="9" transform="rotate(-3 540 112)"/>
     <text x="540" y="126" text-anchor="middle" font-family="Arial,sans-serif" font-size="42" font-weight="900" letter-spacing="5" fill="#FF6757">CAT WINS</text>
     <circle cx="540" cy="500" r="270" fill="${level.accent}" opacity=".8"/>
-    <g transform="translate(310 230) scale(3.05)">
-      <path d="M31 54 24 14l35 19c10-4 22-4 32 0l35-19-7 41c8 9 12 21 12 34 0 35-25 57-56 57S19 124 19 89c0-14 4-26 12-35Z" fill="${level.fur}" stroke="#202124" stroke-width="5" stroke-linejoin="round"/>
-      <path d="m32 29 19 12-15 9ZM118 29l-19 12 15 9Z" fill="${level.accent}"/>
-      <path d="M41 73q12 2 23 9M111 73q-12 2-23 9" fill="none" stroke="#202124" stroke-width="5" stroke-linecap="round"/>
-      <path d="m69 96 7 6 7-6" fill="${level.accent}" stroke="#202124" stroke-width="3"/>
-      <path d="M64 108q12 14 25 0" fill="none" stroke="#202124" stroke-width="4" stroke-linecap="round"/>
-      <g fill="none" stroke="#202124" stroke-width="6" stroke-linecap="round"><path d="M75 145q-10 26 0 42"/><path d="M70 157 42 176M79 157l29 16M75 186l-23 22M75 186l25 22"/></g>
-    </g>
+    ${createCardCatSvg(level)}
     <text x="540" y="850" text-anchor="middle" font-family="Arial,sans-serif" font-size="38" font-weight="700" fill="#F45D4C">Lv.${loss.level} ${escapeXml(loss.levelName)} 놓침</text>
     <text x="540" y="945" text-anchor="middle" font-family="Arial,sans-serif" font-size="76" font-weight="900" fill="#202124">${headline}</text>
     <text x="540" y="1010" text-anchor="middle" font-family="Arial,sans-serif" font-size="28" fill="#6B645C">${description}</text>

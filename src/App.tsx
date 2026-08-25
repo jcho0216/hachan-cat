@@ -27,7 +27,7 @@ const LEGACY_SELECTED_LEVEL_KEY = 'hachan-cat-selected-level-v1';
 const CAUGHT_LEVELS_KEY = 'hachan-cat-caught-levels-v2';
 const PROGRESS_KEY = 'hachan-cat-level-v2';
 const SELECTED_LEVEL_KEY = 'hachan-cat-selected-level-v2';
-const MISS_TAUNTS = ['아무도 없는데?', '거긴 아까 있었어.', '화면은 잘 눌렀네.', '한 번 더 해봐.'];
+const MISS_TAUNTS = ['아무도 없는데?', '거긴 아까 있었어.', '화면은 잘 눌렀네.', '그것밖에 안되냐?', '한 번 더 해봐.'];
 const NEAR_TAUNTS = ['오, 방금은 좀.', '수염만 스쳤네.', '이건 거의 인정.', '조금 늦었어.'];
 const LEVEL_TAUNTS = ['아직 보는 중.', '그쪽 아니야.', '손 다 보이는데.', '다음은 어디?'];
 const SOUND_KEY = 'hachan-cat-sound-v1';
@@ -236,7 +236,7 @@ function App() {
     const forcedPose = REACTIVE_POSES[poseIndex];
     setDodgeFx({ key: Date.now(), x: positionRef.current.x, y: positionRef.current.y, label: DODGE_WORDS[poseIndex] });
     setPose(forcedPose);
-    setTaunt(difficulty.id >= 8 ? ['늦었어.', '그 손 다 보여.', '한 번 더 와봐.'][moveStep.current % 3] : NEAR_TAUNTS[(moveStep.current + difficulty.id) % NEAR_TAUNTS.length]);
+    setTaunt(difficulty.id >= 8 ? ['늦었어.', '그 손 다 보여.', '그것밖에 안되냐?', '한 번 더 와봐.'][moveStep.current % 4] : NEAR_TAUNTS[(moveStep.current + difficulty.id) % NEAR_TAUNTS.length]);
     setTauntKey((value) => value + 1);
     moveCatAway(clientX, clientY, forcedPose);
     void haptic('wiggle'); playSound('near', soundEnabled);
