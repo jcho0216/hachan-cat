@@ -6,6 +6,8 @@ const CLICK_EVENTS = new Set([
   'game_start',
   'invalid_tap',
   'leaderboard_open',
+  'loss_meme_save',
+  'loss_meme_share',
   'meme_save',
   'meme_share',
   'native_back',

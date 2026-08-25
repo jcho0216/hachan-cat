@@ -79,6 +79,7 @@ assert.equal(safeStorageGet('missing'), null, '저장소가 없는 환경에서�
 assert.equal(safeStorageSet('missing', 'value'), false, '저장소가 없는 환경에서는 실패를 안전하게 알려야 합니다.');
 assert.equal(analyticsKindFor('game_start'), 'click', '사용자가 시작한 행동은 클릭 이벤트로 전송해야 합니다.');
 assert.equal(analyticsKindFor('tutorial_start'), 'click', '튜토리얼 조작 시작은 클릭 이벤트로 전송해야 합니다.');
+assert.equal(analyticsKindFor('loss_meme_share'), 'click', '패배 카드 공유도 사용자 클릭 이벤트로 전송해야 합니다.');
 assert.equal(analyticsKindFor('game_catch'), 'impression', '게임 결과는 노출 이벤트로 전송해야 합니다.');
 
 console.log('✓ challenge links, fair scoring, records, tension feedback, and analytics routing verified');

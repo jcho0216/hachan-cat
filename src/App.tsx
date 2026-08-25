@@ -6,6 +6,7 @@ import { REWARDS, chooseReward, getGrade } from './data';
 import { LEVELS, getLevel } from './levels';
 import { movementFor } from './movement';
 import { saveLossMemeCard, saveMemeCard, shareChallenge, shareLossChallenge } from './share';
+import { isShareCancellation } from './shareOutcome';
 import type { CatPose } from './levels';
 import type { MovementAim, Position } from './movement';
 import type { GameLoss, GameMode, GameResult } from './types';
@@ -496,29 +497,29 @@ function App() {
   async function handleSave() {
     if (!result || busy) return;
     setBusy('save');
-    try { await saveMemeCard(result); showNotice('밈 카드 저장 완료. 이제 자랑만 하면 됨.'); track('meme_save', { level: result.level, result: 'success' }); }
+    try { const channel = await saveMemeCard(result); showNotice(channel === 'native' ? '사진에 밈 카드 저장 완료.' : '밈 카드 다운로드를 시작했어요.'); track('meme_save', { level: result.level, result: 'success', channel }); }
     catch { showNotice('카드를 저장하지 못했어요. 한 번 더 눌러주세요.'); track('meme_save', { level: result.level, result: 'error' }); }
     finally { setBusy(null); }
   }
   async function handleShare() {
     if (!result || busy) return;
     setBusy('share');
-    try { await shareChallenge(result); showNotice('공유 완료. 이제 친구 차례.'); track('meme_share', { level: result.level, result: 'success' }); }
-    catch { showNotice('공유를 마치지 못했어요.'); track('meme_share', { level: result.level, result: 'cancel' }); }
+    try { const channel = await shareChallenge(result); showNotice(channel === 'clipboard' ? '도전 링크 복사 완료. 친구에게 붙여넣기!' : '공유창을 열었어요. 이제 친구 고르기.'); track('meme_share', { level: result.level, result: 'opened', channel }); }
+    catch (error) { const cancelled = isShareCancellation(error); showNotice(cancelled ? '공유를 취소했어요.' : '공유창을 열지 못했어요. 다시 시도해주세요.'); track('meme_share', { level: result.level, result: cancelled ? 'cancel' : 'error' }); }
     finally { setBusy(null); }
   }
   async function handleLossSave() {
     if (!lossResult || busy) return;
     setBusy('save');
-    try { await saveLossMemeCard(lossResult); showNotice('패배도 기록입니다. 카드 저장 완료.'); }
-    catch { showNotice('카드를 저장하지 못했어요.'); }
+    try { const channel = await saveLossMemeCard(lossResult); showNotice(channel === 'native' ? '패배 카드도 사진에 저장했어요.' : '패배 카드 다운로드를 시작했어요.'); track('loss_meme_save', { level: lossResult.level, result: 'success', channel }); }
+    catch { showNotice('카드를 저장하지 못했어요. 한 번 더 눌러주세요.'); track('loss_meme_save', { level: lossResult.level, result: 'error' }); }
     finally { setBusy(null); }
   }
   async function handleLossShare() {
     if (!lossResult || busy) return;
     setBusy('share');
-    try { await shareLossChallenge(lossResult); showNotice('복수할 친구를 불렀어요.'); }
-    catch { showNotice('공유를 마치지 못했어요.'); }
+    try { const channel = await shareLossChallenge(lossResult); showNotice(channel === 'clipboard' ? '복수 링크 복사 완료. 친구에게 붙여넣기!' : '공유창을 열었어요. 복수할 친구 고르기.'); track('loss_meme_share', { level: lossResult.level, result: 'opened', channel }); }
+    catch (error) { const cancelled = isShareCancellation(error); showNotice(cancelled ? '공유를 취소했어요.' : '공유창을 열지 못했어요. 다시 시도해주세요.'); track('loss_meme_share', { level: lossResult.level, result: cancelled ? 'cancel' : 'error' }); }
     finally { setBusy(null); }
   }
   async function syncLeaderboardScore(score: number, source: 'game_end' | 'leaderboard_open') {

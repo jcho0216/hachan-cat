@@ -4,22 +4,39 @@ import { getLossCopy } from './lossCopy';
 import { createCardCatSvg } from './catAppearance';
 import { createCatchChallengeDeepLink, createCatchChallengeWebUrl, createLossChallengeDeepLink, createLossChallengeWebUrl } from './challenge';
 import { getCatchMoment } from './resultMoment';
+import { isNativeShareVersionSupported, isShareCancellation, ShareCancelledError } from './shareOutcome';
 
 const escapeXml = (value: string) => value.replace(/[<>&'\"]/g, (char) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' })[char]!);
 const SHARE_PREVIEW_IMAGE_URL = 'https://hachan-cat.vercel.app/og-thumbnail.png?v=2';
+export type SaveOutcome = 'native' | 'download';
+export type ShareOutcome = 'native' | 'web' | 'clipboard';
+
+async function blobToBase64(blob: Blob) {
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '');
+    reader.onerror = () => reject(reader.error ?? new Error('이미지 인코딩 실패'));
+    reader.readAsDataURL(blob);
+  });
+}
 
 async function svgToPng(svg: string): Promise<{ base64: string; blob: Blob }> {
   const svgBlob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
   const url = URL.createObjectURL(svgBlob);
-  const image = new Image();
-  await new Promise<void>((resolve, reject) => { image.onload = () => resolve(); image.onerror = reject; image.src = url; });
-  const canvas = document.createElement('canvas');
-  canvas.width = 1080;
-  canvas.height = 1350;
-  canvas.getContext('2d')!.drawImage(image, 0, 0);
-  URL.revokeObjectURL(url);
-  const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((value) => value ? resolve(value) : reject(new Error('이미지 생성 실패')), 'image/png'));
-  return { base64: canvas.toDataURL('image/png').split(',')[1], blob };
+  try {
+    const image = new Image();
+    await new Promise<void>((resolve, reject) => { image.onload = () => resolve(); image.onerror = () => reject(new Error('카드 SVG를 불러오지 못했어요.')); image.src = url; });
+    const canvas = document.createElement('canvas');
+    canvas.width = 1080;
+    canvas.height = 1350;
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('이미지 캔버스를 사용할 수 없어요.');
+    context.drawImage(image, 0, 0);
+    const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((value) => value ? resolve(value) : reject(new Error('이미지 생성 실패')), 'image/png'));
+    return { base64: await blobToBase64(blob), blob };
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }
 
 export function createMemeSvg(result: GameResult) {
@@ -79,63 +96,71 @@ export async function createLossMemePng(loss: GameLoss): Promise<{ base64: strin
   return svgToPng(svg);
 }
 
-export async function saveMemeCard(result: GameResult) {
+async function savePng(base64: string, blob: Blob, fileName: string): Promise<SaveOutcome> {
+  try {
+    const { saveBase64Data } = await import('@apps-in-toss/web-framework');
+    await saveBase64Data({ data: base64, fileName, mimeType: 'image/png' });
+    return 'native';
+  } catch {
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = fileName;
+    anchor.hidden = true;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1500);
+    return 'download';
+  }
+}
+
+export async function saveMemeCard(result: GameResult): Promise<SaveOutcome> {
   const { base64, blob } = await createMemePng(result);
-  try {
-    const { saveBase64Data } = await import('@apps-in-toss/web-framework');
-    await saveBase64Data({ data: base64, fileName: `하찮냥-${result.reward.id}.png`, mimeType: 'image/png' });
-  } catch {
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = `하찮냥-${result.reward.id}.png`;
-    anchor.click();
-    URL.revokeObjectURL(url);
-  }
+  return savePng(base64, blob, `하찮냥-${result.reward.id}.png`);
 }
 
-export async function saveLossMemeCard(loss: GameLoss) {
+export async function saveLossMemeCard(loss: GameLoss): Promise<SaveOutcome> {
   const { base64, blob } = await createLossMemePng(loss);
-  try {
-    const { saveBase64Data } = await import('@apps-in-toss/web-framework');
-    await saveBase64Data({ data: base64, fileName: `하찮냥-패배-Lv${loss.level}.png`, mimeType: 'image/png' });
-  } catch {
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = `하찮냥-패배-Lv${loss.level}.png`;
-    anchor.click();
-    URL.revokeObjectURL(url);
-  }
+  return savePng(base64, blob, `하찮냥-패배-Lv${loss.level}.png`);
 }
 
-export async function shareChallenge(result: GameResult) {
+async function shareWithFallback(title: string, message: string, webUrl: string, deepLink: string): Promise<ShareOutcome> {
+  try {
+    const { getTossShareLink, isMinVersionSupported, share } = await import('@apps-in-toss/web-framework');
+    if (!isNativeShareVersionSupported(isMinVersionSupported)) throw new Error('네이티브 공유 미지원');
+    const link = await getTossShareLink(deepLink, SHARE_PREVIEW_IMAGE_URL);
+    try {
+      await share({ message: `${message}\n${link}` });
+      return 'native';
+    } catch (error) {
+      if (isShareCancellation(error)) throw new ShareCancelledError();
+    }
+  } catch (error) {
+    if (isShareCancellation(error)) throw new ShareCancelledError();
+  }
+  if (navigator.share) {
+    try {
+      await navigator.share({ title, text: message, url: webUrl });
+      return 'web';
+    } catch (error) {
+      if (isShareCancellation(error)) throw new ShareCancelledError();
+    }
+  }
+  await navigator.clipboard.writeText(`${message}\n${webUrl}`);
+  return 'clipboard';
+}
+
+export async function shareChallenge(result: GameResult): Promise<ShareOutcome> {
   const moment = getCatchMoment(result, getLevel(result.level).hitsRequired ?? 1);
   const message = `[${moment.label}] Lv.${result.level} ${result.levelName}, ${(result.elapsedMs / 1000).toFixed(1)}초 만에 잡음.\n이 기록 넘을 수 있겠어? 😼`;
   const webUrl = createCatchChallengeWebUrl(result);
-  try {
-    const { getTossShareLink, share } = await import('@apps-in-toss/web-framework');
-    const link = await getTossShareLink(createCatchChallengeDeepLink(result), SHARE_PREVIEW_IMAGE_URL);
-    await share({ message: `${message}\n${link}` });
-  } catch {
-    if (navigator.share) {
-      await navigator.share({ title: '하찮냥', text: message, url: webUrl });
-    } else {
-      await navigator.clipboard.writeText(`${message}\n${webUrl}`);
-    }
-  }
+  return shareWithFallback('하찮냥', message, webUrl, createCatchChallengeDeepLink(result));
 }
 
-export async function shareLossChallenge(loss: GameLoss) {
+export async function shareLossChallenge(loss: GameLoss): Promise<ShareOutcome> {
   const detail = loss.reason === 'time' ? '15초 동안 못 잡았어' : '기회 5번을 다 놓쳤어';
   const message = `Lv.${loss.level} ${loss.levelName}, 나는 ${detail}.\n너는 잡을 수 있겠어? 😿`;
   const webUrl = createLossChallengeWebUrl(loss);
-  try {
-    const { getTossShareLink, share } = await import('@apps-in-toss/web-framework');
-    const link = await getTossShareLink(createLossChallengeDeepLink(loss), SHARE_PREVIEW_IMAGE_URL);
-    await share({ message: `${message}\n${link}` });
-  } catch {
-    if (navigator.share) await navigator.share({ title: '하찮냥 놓친 기록', text: message, url: webUrl });
-    else await navigator.clipboard.writeText(`${message}\n${webUrl}`);
-  }
+  return shareWithFallback('하찮냥 놓친 기록', message, webUrl, createLossChallengeDeepLink(loss));
 }

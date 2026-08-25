@@ -29,8 +29,9 @@ assert.ok(!viteConfig.includes('hachan-jinxeifk1-junjoys-projects.vercel.app'), 
 const assetCache = vercelConfig.headers.find((rule) => rule.source === '/assets/(.*)')?.headers
   .find((header) => header.key.toLowerCase() === 'cache-control')?.value;
 assert.equal(assetCache, 'public, max-age=31536000, immutable', '해시 자산은 재방문 때 다시 내려받지 않도록 장기 캐시해야 합니다.');
-assert.ok(shareSource.includes('getTossShareLink(createCatchChallengeDeepLink(result), SHARE_PREVIEW_IMAGE_URL)'), '승리 공유 링크에 기록과 OG 이미지를 전달해야 합니다.');
-assert.ok(shareSource.includes('getTossShareLink(createLossChallengeDeepLink(loss), SHARE_PREVIEW_IMAGE_URL)'), '패배 공유 링크에 복수 대상과 OG 이미지를 전달해야 합니다.');
+assert.ok(shareSource.includes("shareWithFallback('하찮냥', message, webUrl, createCatchChallengeDeepLink(result))"), '승리 공유는 기록 딥링크가 포함된 공통 공유 경로를 사용해야 합니다.');
+assert.ok(shareSource.includes("shareWithFallback('하찮냥 놓친 기록', message, webUrl, createLossChallengeDeepLink(loss))"), '패배 공유는 복수 딥링크가 포함된 공통 공유 경로를 사용해야 합니다.');
+assert.ok(shareSource.includes('getTossShareLink(deepLink, SHARE_PREVIEW_IMAGE_URL)'), '모든 토스 공유 링크에 OG 이미지를 전달해야 합니다.');
 assert.ok(shareSource.includes("https://hachan-cat.vercel.app/og-thumbnail.png?v=2"), '토스 공유 이미지는 HTTPS 절대 URL이어야 합니다.');
 assert.ok(shareSource.includes('export function createMemeSvg'), '저장 카드 마크업은 독립적으로 검증 가능한 함수여야 합니다.');
 assert.ok(shareSource.includes('오늘의 ${escapeXml(moment.label)}'), '저장 카드에 포획 순간 이름이 포함되어야 합니다.');
