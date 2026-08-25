@@ -8,6 +8,8 @@ export type CatReward = {
   face: 'smug' | 'tired' | 'blank' | 'grumpy' | 'proud' | 'sleepy';
 };
 
+export type GameMode = 'campaign' | 'daily' | 'challenge';
+
 export type GameResult = {
   attempts: number;
   elapsedMs: number;
@@ -18,7 +20,7 @@ export type GameResult = {
   grade: string;
   verdict: string;
   reward: CatReward;
-  mode?: 'campaign' | 'daily';
+  mode?: GameMode;
   score?: number;
 };
 
@@ -30,5 +32,5 @@ export type GameLoss = {
   attempts: number;
   nearMisses: number;
   closestDistance: number;
-  mode?: 'campaign' | 'daily';
+  mode?: GameMode;
 };

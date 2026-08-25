@@ -8,15 +8,17 @@ import { movementFor } from './movement';
 import { saveLossMemeCard, saveMemeCard, shareChallenge, shareLossChallenge } from './share';
 import type { CatPose } from './levels';
 import type { MovementAim, Position } from './movement';
-import type { GameLoss, GameResult } from './types';
+import type { GameLoss, GameMode, GameResult } from './types';
 import { calculateDailyScore, DAILY_BEST_KEY, getDailyChallenge, readDailyBest } from './daily';
 import { haptic, pauseAudio, playSound } from './feedback';
 import { openLeaderboard, submitDailyScore } from './gameCenter';
 import { track } from './telemetry';
 import type { CatBehavior } from './levels';
+import { challengeDelta, parseChallengeTarget, type ChallengeTarget } from './challenge';
+import { LEVEL_BESTS_KEY, readLevelBests, recordLevelBest } from './records';
+import { nextUnlockedLevel } from './progress';
 
 type Screen = 'home' | 'levels' | 'game' | 'ending' | 'result' | 'loss' | 'collection';
-type GameMode = 'campaign' | 'daily';
 type Aim = MovementAim & { x: number; y: number; clientX: number; clientY: number; startedAt: number };
 
 const START_POSITION: Position = { x: 50, y: 50, tilt: 0 };
@@ -39,6 +41,7 @@ const BEHAVIOR_LABELS: Record<CatBehavior, string> = {
 };
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+const formatSeconds = (elapsedMs: number) => `${(elapsedMs / 1000).toFixed(2)}초`;
 const mapLegacyLevel = (id: number) => clamp(Math.ceil(id / 2), 1, LEVELS.length);
 const readLegacyCaughtLevels = () => {
   try {
@@ -94,6 +97,10 @@ function App() {
   const [attention, setAttention] = useState<'idle' | 'watch' | 'danger'>('idle');
   const [dodgeFx, setDodgeFx] = useState<{ key: number; x: number; y: number; label: string } | null>(null);
   const [showGameGuide, setShowGameGuide] = useState(false);
+  const [levelBests, setLevelBests] = useState(readLevelBests);
+  const [isNewBest, setIsNewBest] = useState(false);
+  const [incomingChallenge, setIncomingChallenge] = useState<ChallengeTarget | null>(() => parseChallengeTarget(window.location.search));
+  const [activeChallenge, setActiveChallenge] = useState<ChallengeTarget | null>(null);
   const daily = useMemo(() => getDailyChallenge(), []);
 
   const fieldRef = useRef<HTMLDivElement>(null);
@@ -110,6 +117,8 @@ function App() {
   const closestDistanceRef = useRef(Number.POSITIVE_INFINITY);
   const hiddenAtRef = useRef<number | null>(null);
   const reactedToAimRef = useRef(false);
+  const practiceAttemptRef = useRef(false);
+  const toastTimerRef = useRef(0);
   const difficulty = getLevel(activeLevel);
   const selectedDifficulty = getLevel(selectedLevel);
 
@@ -121,6 +130,7 @@ function App() {
   useEffect(() => { localStorage.setItem(PROGRESS_KEY, String(unlockedLevel)); }, [unlockedLevel]);
   useEffect(() => { localStorage.setItem(SELECTED_LEVEL_KEY, String(selectedLevel)); }, [selectedLevel]);
   useEffect(() => { localStorage.setItem(SOUND_KEY, soundEnabled ? 'on' : 'off'); track('sound_toggle', { enabled: soundEnabled }); }, [soundEnabled]);
+  useEffect(() => { localStorage.setItem(LEVEL_BESTS_KEY, JSON.stringify(levelBests)); }, [levelBests]);
   useEffect(() => { aimRef.current = aim; }, [aim]);
   useEffect(() => { positionRef.current = position; }, [position]);
   useEffect(() => {
@@ -186,20 +196,22 @@ function App() {
   const collectionCount = useMemo(() => new Set(caughtLevels).size, [caughtLevels]);
   const rewardCount = useMemo(() => new Set(collection.filter((id) => REWARDS.some((reward) => reward.id === id))).size, [collection]);
   const timeProgress = Math.round((remainingMs / difficulty.roundMs) * 100);
+  const resultChallengeDelta = result ? challengeDelta(result.elapsedMs, activeChallenge) : null;
 
   function startGame(levelId = selectedLevel, nextMode: GameMode = 'campaign') {
-    const safeLevel = nextMode === 'daily' ? clamp(levelId, 1, LEVELS.length) : Math.min(levelId, unlockedLevel, LEVELS.length);
+    const safeLevel = nextMode === 'daily' || nextMode === 'challenge' ? clamp(levelId, 1, LEVELS.length) : Math.min(levelId, unlockedLevel, LEVELS.length);
     setActiveLevel(safeLevel);
     if (nextMode === 'campaign') setSelectedLevel(safeLevel);
     setMode(nextMode);
+    setActiveChallenge(nextMode === 'challenge' ? incomingChallenge : null);
     startedAt.current = Date.now();
-    moveStep.current = 0; attemptsRef.current = 0; missesRef.current = 0; bossHitsRef.current = 0; finishedRef.current = false; aimRef.current = null; positionRef.current = START_POSITION; reactedToAimRef.current = false;
+    moveStep.current = 0; attemptsRef.current = 0; missesRef.current = 0; bossHitsRef.current = 0; finishedRef.current = false; aimRef.current = null; positionRef.current = START_POSITION; reactedToAimRef.current = false; practiceAttemptRef.current = false;
     nearMissesRef.current = 0; closestDistanceRef.current = Number.POSITIVE_INFINITY;
     setAttempts(0); setMisses(0); setNearMisses(0); setBossHits(0); setPose('wiggle'); setPosition(START_POSITION);
     setPhaseBehavior(getLevel(safeLevel).behavior); setPhaseKey((value) => value + 1);
     setTaunt('잡을 수 있으면.'); setTauntKey((value) => value + 1); setAim(null); setFeedback(null); setAttention('idle'); setDodgeFx(null);
-    setShowGameGuide(localStorage.getItem(FIRST_PLAY_KEY) !== 'seen');
-    setRemainingMs(getLevel(safeLevel).roundMs); setResult(null); setLossResult(null); setScreen('game');
+    setShowGameGuide(nextMode === 'campaign' && localStorage.getItem(FIRST_PLAY_KEY) !== 'seen');
+    setRemainingMs(getLevel(safeLevel).roundMs); setResult(null); setLossResult(null); setIsNewBest(false); setScreen('game');
     track('game_start', { level: safeLevel, mode: nextMode });
   }
 
@@ -251,6 +263,7 @@ function App() {
     const nextAim = { ...point, clientX: event.clientX, clientY: event.clientY, startedAt: Date.now(), dx: 0, dy: 0 };
     reactedToAimRef.current = false; aimRef.current = nextAim; setAim(nextAim); setAttention('watch');
     if (showGameGuide) {
+      practiceAttemptRef.current = true;
       startedAt.current = Date.now();
       moveStep.current = 0;
       localStorage.setItem(FIRST_PLAY_KEY, 'seen');
@@ -287,8 +300,9 @@ function App() {
     const currentAim = aimRef.current;
     const head = headRef.current?.getBoundingClientRect();
     if (!currentAim || !head || finishedRef.current) { clearAim(); return; }
+    const isPracticeAttempt = practiceAttemptRef.current;
+    practiceAttemptRef.current = false;
     const nextAttempts = attemptsRef.current + 1;
-    attemptsRef.current = nextAttempts; setAttempts(nextAttempts);
     const catX = head.left + head.width / 2;
     const catY = head.top + head.height / 2;
     const distance = Math.hypot(event.clientX - catX, event.clientY - catY);
@@ -300,6 +314,7 @@ function App() {
     clearAim();
 
     if (distance <= hitRadius) {
+      attemptsRef.current = nextAttempts; setAttempts(nextAttempts);
       const requiredHits = difficulty.hitsRequired ?? 1;
       const nextBossHits = bossHitsRef.current + 1;
       if (nextBossHits < requiredHits) {
@@ -313,11 +328,13 @@ function App() {
       finishedRef.current = true;
       const reward = chooseReward(difficulty.id);
       const [grade, verdict] = getGrade(accuracy, elapsedMs, nextAttempts);
-      const score = mode === 'daily' ? calculateDailyScore(elapsedMs, nextAttempts, nearMissesRef.current) : undefined;
+      const score = mode === 'daily' ? calculateDailyScore(elapsedMs, nextAttempts, difficulty.id, difficulty.hitsRequired ?? 1) : undefined;
       const nextResult: GameResult = { attempts: nextAttempts, elapsedMs, accuracy, nearMisses: nearMissesRef.current, level: difficulty.id, levelName: difficulty.name, grade, verdict, reward, mode, score };
       setResult(nextResult); setCollection((current) => [...current, reward.id]);
+      const recorded = recordLevelBest(levelBests, nextResult);
+      setLevelBests(recorded.bests); setIsNewBest(recorded.isNewBest);
       setCaughtLevels((current) => current.includes(difficulty.id) ? current : [...current, difficulty.id]);
-      setUnlockedLevel((current) => Math.max(current, Math.min(LEVELS.length, difficulty.id + 1)));
+      setUnlockedLevel((current) => nextUnlockedLevel(current, difficulty.id, mode, LEVELS.length));
       setFeedback({ key: Date.now(), text: `잡았다 · ${accuracy}%`, near: true });
       if (mode === 'daily' && score !== undefined) {
         const best = readDailyBest();
@@ -325,7 +342,7 @@ function App() {
           const nextBest = { date: daily.date, score, elapsedMs, attempts: nextAttempts, level: difficulty.id };
           localStorage.setItem(DAILY_BEST_KEY, JSON.stringify(nextBest)); setDailyBest(nextBest);
         }
-        void submitDailyScore(score);
+        void submitDailyScore(score).then((success) => track('leaderboard_submit', { score, success }));
       }
       track('game_catch', { level: difficulty.id, mode, elapsedMs, attempts: nextAttempts, score: score ?? 0 });
       void haptic(difficulty.id === LEVELS.length ? 'confetti' : 'success'); playSound('catch', soundEnabled);
@@ -335,6 +352,17 @@ function App() {
 
     const nearRadius = hitRadius + 42;
     const isNear = distance <= nearRadius;
+    if (isPracticeAttempt) {
+      startedAt.current = Date.now();
+      setRemainingMs(difficulty.roundMs);
+      setTaunt('연습은 끝. 이제 진짜야.'); setTauntKey((value) => value + 1);
+      setFeedback({ key: Date.now(), text: isNear ? '거의 맞았어 · 기회 유지' : '연습 끝 · 기회 유지', near: isNear });
+      moveCatAway(event.clientX, event.clientY);
+      void haptic(isNear ? 'wiggle' : 'basicWeak'); playSound(isNear ? 'near' : 'miss', soundEnabled);
+      track('practice_attempt', { level: difficulty.id, near: isNear });
+      return;
+    }
+    attemptsRef.current = nextAttempts; setAttempts(nextAttempts);
     if (isNear) { nearMissesRef.current += 1; setNearMisses(nearMissesRef.current); }
     const nextMisses = missesRef.current + 1;
     missesRef.current = nextMisses; setMisses(nextMisses);
@@ -352,13 +380,43 @@ function App() {
     }
   }
 
-  async function handleSave() { if (!result || busy) return; setBusy('save'); try { await saveMemeCard(result); } finally { setBusy(null); } }
-  async function handleShare() { if (!result || busy) return; setBusy('share'); try { await shareChallenge(result); } finally { setBusy(null); } }
-  async function handleLossSave() { if (!lossResult || busy) return; setBusy('save'); try { await saveLossMemeCard(lossResult); } finally { setBusy(null); } }
-  async function handleLossShare() { if (!lossResult || busy) return; setBusy('share'); try { await shareLossChallenge(lossResult); } finally { setBusy(null); } }
+  function showNotice(message: string) {
+    window.clearTimeout(toastTimerRef.current);
+    setToast(message);
+    toastTimerRef.current = window.setTimeout(() => setToast(''), 2600);
+  }
+
+  async function handleSave() {
+    if (!result || busy) return;
+    setBusy('save');
+    try { await saveMemeCard(result); showNotice('밈 카드 저장 완료. 이제 자랑만 하면 됨.'); track('meme_save', { level: result.level, result: 'success' }); }
+    catch { showNotice('카드를 저장하지 못했어요. 한 번 더 눌러주세요.'); track('meme_save', { level: result.level, result: 'error' }); }
+    finally { setBusy(null); }
+  }
+  async function handleShare() {
+    if (!result || busy) return;
+    setBusy('share');
+    try { await shareChallenge(result); showNotice('공유 완료. 이제 친구 차례.'); track('meme_share', { level: result.level, result: 'success' }); }
+    catch { showNotice('공유를 마치지 못했어요.'); track('meme_share', { level: result.level, result: 'cancel' }); }
+    finally { setBusy(null); }
+  }
+  async function handleLossSave() {
+    if (!lossResult || busy) return;
+    setBusy('save');
+    try { await saveLossMemeCard(lossResult); showNotice('패배도 기록입니다. 카드 저장 완료.'); }
+    catch { showNotice('카드를 저장하지 못했어요.'); }
+    finally { setBusy(null); }
+  }
+  async function handleLossShare() {
+    if (!lossResult || busy) return;
+    setBusy('share');
+    try { await shareLossChallenge(lossResult); showNotice('복수할 친구를 불렀어요.'); }
+    catch { showNotice('공유를 마치지 못했어요.'); }
+    finally { setBusy(null); }
+  }
   async function handleLeaderboard() {
     track('leaderboard_open', { source: screen });
-    if (!await openLeaderboard()) { setToast('랭킹은 토스 앱에서 볼 수 있어요'); window.setTimeout(() => setToast(''), 2600); }
+    if (!await openLeaderboard()) showNotice('전체 랭킹은 토스 앱에서 볼 수 있어요.');
   }
 
   const character = (caught = false) => <CatCharacter ref={caught ? undefined : headRef} caught={caught} reward={caught ? result?.reward : undefined} pose={pose} fur={difficulty.fur} accent={difficulty.accent} evil={difficulty.evil} attention={caught ? 'idle' : attention} />;
@@ -368,17 +426,15 @@ function App() {
       <header className="app-header"><button className="wordmark" onClick={() => setScreen('home')} aria-label="홈으로">하찮냥<span>˙</span></button><div className="header-actions"><button className="sound-toggle" onClick={() => setSoundEnabled((value) => !value)} aria-label={soundEnabled ? '소리 끄기' : '소리 켜기'}>{soundEnabled ? '♪' : '×'}</button><button className="collection-link" onClick={() => setScreen('collection')}>도감 <strong>{collectionCount}</strong></button></div></header>
 
       {screen === 'home' && <section className="home-screen page-enter">
-        <div className="home-copy"><span className="kicker">잡으면 이기고, 놓치면 놀림받음</span><h1>이 고양이,<br /><em>한 번 잡아볼래?</em></h1><p>꾹 누른 채 쫓아가세요. 머리에 닿았을 때 손을 떼면 성공.</p></div>
-        <div className="home-character-wrap"><div className="speech-bubble">난 가만히 있을 생각 없는데.</div><CatCharacter pose="paddle" evil={2} /><span className="floor-shadow" /></div>
+        <div className="home-copy"><span className="kicker">{incomingChallenge ? incomingChallenge.source === 'loss' ? '친구가 복수를 부탁함' : '피할 수 없는 기록 도착' : '잡으면 이기고, 놓치면 놀림받음'}</span><h1>{incomingChallenge ? <>친구 기록이,<br /><em>좀 건방지네?</em></> : <>이 고양이,<br /><em>한 번 잡아볼래?</em></>}</h1><p>{incomingChallenge ? '같은 고양이, 같은 규칙. 이번엔 당신 차례입니다.' : '꾹 누른 채 쫓아가세요. 머리에 닿았을 때 손을 떼면 성공.'}</p></div>
+        <div className="home-character-wrap"><div className="speech-bubble">{incomingChallenge ? '남의 기록 깨는 게 제일 재밌지.' : '난 가만히 있을 생각 없는데.'}</div><CatCharacter pose={incomingChallenge ? 'taunt' : 'paddle'} evil={incomingChallenge ? getLevel(incomingChallenge.level).evil : 2} fur={incomingChallenge ? getLevel(incomingChallenge.level).fur : undefined} accent={incomingChallenge ? getLevel(incomingChallenge.level).accent : undefined} /><span className="floor-shadow" /></div>
         <div className="play-rule" aria-label="게임 방법"><span>☝</span><strong>꾹 누르고 쫓다가</strong><em>머리에서 손 떼기</em></div>
-        <button className="level-select-button" onClick={() => setScreen('levels')}><span>이어서 도전</span><strong>Lv.{selectedDifficulty.id} {selectedDifficulty.name}</strong><i>10마리 보기 ›</i></button>
-        <div className="daily-card"><div><span>{daily.label}</span><strong>Lv.{daily.level.id} {daily.level.name}</strong><p>오늘은 모두 같은 움직임 · 최고 {dailyBest?.date === daily.date ? `${dailyBest.score.toLocaleString()}점` : '기록 없음'}</p></div><button onClick={() => startGame(daily.level.id, 'daily')}>한 판 하기</button></div>
-        <button className="primary-button wobble-button" onClick={() => startGame()}>도전하기 <span>→</span></button><button className="rank-link" onClick={handleLeaderboard}>🏆 오늘의 랭킹</button><p className="tiny-caption">15초 · 기회 5번 · 머리만 정답</p>
+        {incomingChallenge ? <><div className="challenge-card"><div><span>{incomingChallenge.source === 'loss' ? '친구의 복수 요청' : '친구 기록 도착'}</span><strong>Lv.{incomingChallenge.level} {getLevel(incomingChallenge.level).name}</strong><p>{incomingChallenge.elapsedMs ? `${formatSeconds(incomingChallenge.elapsedMs)} 안에 잡으면 승리` : '친구가 놓친 고양이, 대신 잡아주기'}</p></div><button onClick={() => startGame(incomingChallenge.level, 'challenge')}>기록 깨기</button></div><button className="text-button" onClick={() => setIncomingChallenge(null)}>일단 내 게임부터 하기</button></> : <><button className="level-select-button" onClick={() => setScreen('levels')}><span>이어서 도전</span><strong>Lv.{selectedDifficulty.id} {selectedDifficulty.name}</strong><i>10마리 보기 ›</i></button><div className="daily-card"><div><span>{daily.label}</span><strong>Lv.{daily.level.id} {daily.level.name}</strong><p>오늘은 모두 같은 움직임 · 최고 {dailyBest?.date === daily.date ? `${dailyBest.score.toLocaleString()}점` : '기록 없음'}</p></div><button onClick={() => startGame(daily.level.id, 'daily')}>한 판 하기</button></div><button className="primary-button wobble-button" onClick={() => startGame()}>도전하기 <span>→</span></button><button className="rank-link" onClick={handleLeaderboard}>🏆 전체 최고 기록</button><p className="tiny-caption">15초 · 기회 5번 · 머리만 정답</p></>}
       </section>}
 
       {screen === 'levels' && <section className="levels-screen page-enter">
         <div className="levels-heading"><span className="kicker">쉬운 척하는 10마리</span><h1>오늘은 누구부터?</h1><p>잡을수록 다음 고양이가 열려요. 회피법은 한 마리당 두 가지.</p></div>
-        <div className="level-map">{LEVELS.map((level) => { const locked = level.id > unlockedLevel; const selected = level.id === selectedLevel; return <button key={level.id} className={`level-card ${locked ? 'is-locked' : ''} ${selected ? 'is-selected' : ''}`} onClick={() => !locked && startGame(level.id)} disabled={locked} style={{ '--level-accent': level.accent } as React.CSSProperties}><span>{locked ? '🔒' : `LV.${level.id}`}</span><strong>{locked ? '아직 숨어 있음' : level.name}</strong><p>{locked ? '앞 고양이를 먼저 잡아주세요.' : level.description}</p><i>{level.chapter}</i></button>; })}</div>
+        <div className="level-map">{LEVELS.map((level) => { const locked = level.id > unlockedLevel; const selected = level.id === selectedLevel; const best = levelBests[level.id]; return <button key={level.id} className={`level-card ${locked ? 'is-locked' : ''} ${selected ? 'is-selected' : ''}`} onClick={() => !locked && startGame(level.id)} disabled={locked} style={{ '--level-accent': level.accent } as React.CSSProperties}><span>{locked ? '🔒' : `LV.${level.id}`}</span><strong>{locked ? '아직 숨어 있음' : level.name}</strong><p>{locked ? '앞 고양이를 먼저 잡아주세요.' : level.description}</p><i>{level.chapter}</i>{best && <small>BEST {formatSeconds(best.elapsedMs)} · {best.attempts}회</small>}</button>; })}</div>
         <button className="text-button" onClick={() => setScreen('home')}>홈으로</button>
       </section>}
 
@@ -388,8 +444,8 @@ function App() {
           {difficulty.hitsRequired && <div className="boss-lives" aria-label={`남은 체력 ${difficulty.hitsRequired - bossHits}`}>{Array.from({ length: difficulty.hitsRequired }, (_, index) => <i key={index} className={index < bossHits ? 'is-broken' : ''}>♛</i>)}</div>}
           <div className="round-status"><div><span>남은 시간</span><strong>{(remainingMs / 1000).toFixed(1)}s</strong></div><div className="fatigue-track"><i style={{ width: `${timeProgress}%` }} /></div></div>
         </div>
-        <div ref={fieldRef} className={`game-field ${aim ? 'is-aiming' : ''} ${attention === 'danger' ? 'is-danger' : ''}`} onPointerDown={handleAimStart} onPointerMove={handleAimMove} onPointerUp={handleAimRelease} onPointerCancel={clearAim} aria-label="고양이 잡기 구역">
-          <div key={`phase-${phaseKey}`} className="phase-badge"><span>{mode === 'daily' ? '오늘의 움직임' : '지금은'}</span><strong>{BEHAVIOR_LABELS[phaseBehavior]}</strong></div>
+        <div ref={fieldRef} className={`game-field ${aim ? 'is-aiming' : ''} ${attention === 'danger' ? 'is-danger' : ''} ${result ? 'is-captured' : ''}`} onPointerDown={handleAimStart} onPointerMove={handleAimMove} onPointerUp={handleAimRelease} onPointerCancel={clearAim} aria-label="고양이 잡기 구역">
+          <div key={`phase-${phaseKey}`} className="phase-badge"><span>{mode === 'daily' ? '오늘의 움직임' : mode === 'challenge' ? '친구가 본 움직임' : '지금은'}</span><strong>{BEHAVIOR_LABELS[phaseBehavior]}</strong></div>
           <div key={`flash-${phaseKey}`} className="phase-flash" aria-hidden="true" />
           <div key={`taunt-${tauntKey}`} className="taunt-bubble" style={{ left: `${position.x}%`, top: `calc(${position.y}% - 134px)` }}>{taunt}</div>
           <div className={`cat-target attention-${attention} ${result ? 'is-caught' : ''}`} style={{ left: `${position.x}%`, top: `${position.y}%`, transform: `translate(-50%, -50%) rotate(${position.tilt}deg)`, '--move-ms': `${Math.max(135, difficulty.moveDelay * .72)}ms` } as React.CSSProperties}>
@@ -399,7 +455,7 @@ function App() {
           {aim && <div className={`catch-reticle ${attention === 'danger' ? 'is-danger' : ''} ${[difficulty.behavior, difficulty.secondaryBehavior].some((behavior) => ['blink', 'mirror', 'overlord'].includes(behavior)) ? 'is-warped' : ''}`} style={{ left: aim.x, top: aim.y }}><span>{attention === 'danger' ? '지금 떼면 잡는다' : '머리까지 쫓기'}</span></div>}
           {dodgeFx && <div key={`dodge-${dodgeFx.key}`} className="dodge-fx" style={{ left: `${dodgeFx.x}%`, top: `${dodgeFx.y}%` }}><i /><i /><strong>{dodgeFx.label}</strong></div>}
           {feedback && <div key={`feedback-${feedback.key}`} className={`catch-feedback ${feedback.near ? 'is-near' : ''}`}>{feedback.text}</div>}
-          {showGameGuide && <div className="gesture-coach" aria-label="첫 플레이 안내"><span>☝</span><strong>여기부터 꾹 누른 채<br />고양이 머리를 쫓아가세요</strong></div>}
+          {showGameGuide && <div className="gesture-coach" aria-label="첫 플레이 안내"><span>☝</span><strong>여기부터 꾹 누른 채<br />고양이 머리를 쫓아가세요</strong><small>첫 실패는 시간·기회 차감 없음</small></div>}
           <div className="field-dots" aria-hidden="true"><i /><i /><i /><i /></div>
         </div><p className="game-tip">꾹 누르고 쫓다가 머리에서 떼기 · 놓치면 기회 1개 차감</p>
       </section>}
@@ -412,20 +468,20 @@ function App() {
       </section>}
 
       {screen === 'loss' && lossResult && <section className="loss-screen page-enter">
-        <div className="loss-heading"><span className="loss-stamp">CAT WINS</span><h1>{lossResult.reason === 'time' ? '이번 판은 고양이 승.' : '기회 끝. 고양이 승.'}</h1><p>바로 다시 하면 잡힐지도 몰라요.</p></div>
+        <div className="loss-heading"><span className="loss-stamp">CAT WINS</span><h1>{lossResult.reason === 'time' ? '이번 판은 고양이 승.' : '기회 끝. 고양이 승.'}</h1><p>{lossResult.mode === 'challenge' ? '친구 기록은 아직 살아 있습니다. 바로 다시 가죠.' : '바로 다시 하면 잡힐지도 몰라요.'}</p></div>
         <LossCard loss={lossResult} />
         <div className="loss-actions"><button className="primary-button" onClick={() => startGame(lossResult.level, lossResult.mode ?? 'campaign')}>바로 다시 잡기 <span>→</span></button><button className="secondary-button" onClick={handleLossShare} disabled={Boolean(busy)}>{busy === 'share' ? '공유창 여는 중…' : '패배 카드 보내기'}</button><div className="minor-actions"><button onClick={handleLossSave} disabled={Boolean(busy)}>{busy === 'save' ? '카드 만드는 중…' : '카드 저장'}</button><button onClick={() => setScreen('levels')}>다른 고양이</button></div></div>
       </section>}
 
       {screen === 'result' && result && <section className="result-screen page-enter">
-        <div className="confetti" aria-hidden="true">✦ <i>●</i> ◆ <b>✦</b> <em>●</em></div><div className="result-heading"><span>{result.mode === 'daily' ? `${daily.label} 완료` : `Lv.${result.level} ${result.levelName} 잡기 성공`}</span><h1>{result.level === LEVELS.length ? '마왕도 결국 고양이였습니다.' : <>잡았다!<br />이번 판은 네가 이겼어.</>}</h1>{result.score !== undefined && <p className="daily-score"><strong>{result.score.toLocaleString()}점</strong> · 오늘 최고 {dailyBest?.score.toLocaleString()}점</p>}</div><RewardCard result={result} compact />
-        <div className="result-actions">{result.mode !== 'daily' && result.level < LEVELS.length && <button className="primary-button next-level-button" onClick={() => startGame(result.level + 1)}>다음 상대 · {getLevel(result.level + 1).name} <span>→</span></button>}{result.mode === 'daily' && <button className="primary-button" onClick={handleLeaderboard}>오늘의 랭킹 보기 <span>→</span></button>}<button className={result.level < LEVELS.length ? 'secondary-button' : 'primary-button'} onClick={handleShare} disabled={Boolean(busy)}>{busy === 'share' ? '공유창 여는 중…' : '밈 카드로 자랑하기'}</button><div className="minor-actions"><button onClick={handleSave} disabled={Boolean(busy)}>{busy === 'save' ? '카드 만드는 중…' : '카드 저장'}</button><button onClick={() => startGame(result.level, result.mode ?? 'campaign')}>다시 잡기</button></div></div>
+        <div className="confetti" aria-hidden="true">✦ <i>●</i> ◆ <b>✦</b> <em>●</em></div><div className="result-heading"><span>{result.mode === 'daily' ? `${daily.label} 완료` : result.mode === 'challenge' ? '친구 기록 도전 완료' : `Lv.${result.level} ${result.levelName} 잡기 성공`}</span><h1>{resultChallengeDelta !== null ? resultChallengeDelta <= 0 ? <>기록 격파!<br />친구보다 {formatSeconds(Math.abs(resultChallengeDelta))} 빠름</> : <>잡긴 잡았는데…<br />친구보다 {formatSeconds(resultChallengeDelta)} 늦음</> : result.mode === 'challenge' ? <>복수 성공!<br />이제 친구에게 보고할 차례.</> : result.level === LEVELS.length ? '마왕도 결국 고양이였습니다.' : <>잡았다!<br />이번 판은 네가 이겼어.</>}</h1>{isNewBest && <p className="new-best-badge">개인 최고 기록 갱신</p>}{result.score !== undefined && <p className="daily-score"><strong>{result.score.toLocaleString()}점</strong> · 오늘 최고 {dailyBest?.score.toLocaleString()}점</p>}</div><RewardCard result={result} compact />
+        <div className="result-actions">{result.mode === 'campaign' && result.level < LEVELS.length && <button className="primary-button next-level-button" onClick={() => startGame(result.level + 1)}>다음 상대 · {getLevel(result.level + 1).name} <span>→</span></button>}{result.mode === 'daily' && <button className="primary-button" onClick={handleLeaderboard}>전체 랭킹 보기 <span>→</span></button>}<button className={result.mode === 'campaign' && result.level < LEVELS.length ? 'secondary-button' : 'primary-button'} onClick={handleShare} disabled={Boolean(busy)}>{busy === 'share' ? '공유창 여는 중…' : result.mode === 'challenge' ? '새 기록으로 도발하기' : '밈 카드로 자랑하기'}</button><div className="minor-actions"><button onClick={handleSave} disabled={Boolean(busy)}>{busy === 'save' ? '카드 만드는 중…' : '카드 저장'}</button><button onClick={() => startGame(result.level, result.mode ?? 'campaign')}>다시 잡기</button></div></div>
       </section>}
 
       {screen === 'collection' && <section className="collection-screen page-enter">
         <div className="collection-heading"><span className="kicker">잡은 고양이는 여기로</span><h1>잡은 냥이들</h1><p>지금까지 잡은 고양이와 받은 카드를 모아뒀어요.</p></div>
         <div className="collection-tabs"><button className={collectionTab === 'levels' ? 'is-active' : ''} onClick={() => setCollectionTab('levels')}>고양이 <strong>{collectionCount}/{LEVELS.length}</strong></button><button className={collectionTab === 'memes' ? 'is-active' : ''} onClick={() => setCollectionTab('memes')}>결과 카드 <strong>{rewardCount}/{REWARDS.length}</strong></button></div>
-        {collectionTab === 'levels' ? <div className="collection-grid level-collection-grid">{LEVELS.map((level) => { const caught = caughtLevels.includes(level.id); return <article key={level.id} className={`collection-card level-collection-card ${caught ? '' : 'is-locked'}`}><div className="collection-cat" style={{ background: caught ? `linear-gradient(145deg,#fff 55%,${level.accent})` : '#E8E5DF' }}>{caught ? <CatCharacter caught pose={level.poses[0]} fur={level.fur} accent={level.accent} evil={level.evil} /> : <span>?</span>}</div><span className="collection-level">LV.{level.id}</span><strong>{caught ? level.name : '아직 숨어 있음'}</strong><p>{caught ? level.description : '직접 잡으면 정체가 보여요.'}</p></article>; })}</div>
+        {collectionTab === 'levels' ? <div className="collection-grid level-collection-grid">{LEVELS.map((level) => { const caught = caughtLevels.includes(level.id); const best = levelBests[level.id]; return <article key={level.id} className={`collection-card level-collection-card ${caught ? '' : 'is-locked'}`}><div className="collection-cat" style={{ background: caught ? `linear-gradient(145deg,#fff 55%,${level.accent})` : '#E8E5DF' }}>{caught ? <CatCharacter caught pose={level.poses[0]} fur={level.fur} accent={level.accent} evil={level.evil} /> : <span>?</span>}</div><span className="collection-level">LV.{level.id}</span><strong>{caught ? level.name : '아직 숨어 있음'}</strong><p>{caught ? level.description : '직접 잡으면 정체가 보여요.'}</p>{best && <small className="collection-best">BEST {formatSeconds(best.elapsedMs)} · {best.grade}</small>}</article>; })}</div>
           : <div className="collection-grid meme-collection-grid">{REWARDS.map((cat, index) => { const unlocked = collection.includes(cat.id); const level = LEVELS[index]; return <article key={cat.id} className={`collection-card ${unlocked ? '' : 'is-locked'}`}><div className="collection-cat" style={{ background: unlocked ? `linear-gradient(145deg,#fff 55%,${level.accent})` : '#E8E5DF' }}>{unlocked ? <CatCharacter caught reward={cat} fur={level.fur} accent={level.accent} evil={level.evil} /> : <span>?</span>}</div><span className="collection-level">LV.{index + 1}</span><strong>{unlocked ? cat.name : '아직 빈칸'}</strong><p>{unlocked ? cat.description : '이 레벨을 잡으면 카드가 열려요.'}</p></article>; })}</div>}
         <button className="primary-button" onClick={() => startGame()}>한 마리 더 잡기</button>
       </section>}

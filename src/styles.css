@@ -124,6 +124,10 @@ button:focus-visible { outline: 4px solid #3b82f6; outline-offset: 3px; }
 .daily-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 12px; padding: 10px 12px; border: 2px solid var(--ink); border-radius: 17px; background: linear-gradient(135deg,#fff,#fff2be); box-shadow: 0 3px 0 var(--ink); }
 .daily-card div { min-width: 0; }.daily-card span { display: block; color: var(--coral); font-size: 9px; font-weight: 900; }.daily-card strong { display: block; margin-top: 2px; font-size: 14px; }.daily-card p { margin: 2px 0 0; color: #817970; font-size: 9px; }
 .daily-card button { flex: 0 0 auto; min-height: 36px; padding: 0 11px; border: 0; border-radius: 12px; background: var(--ink); color: #fff; font-size: 11px; font-weight: 900; cursor: pointer; }
+.challenge-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 12px; padding: 11px 12px; border: 3px solid var(--coral); border-radius: 17px; background: #fff; box-shadow: 0 4px 0 var(--coral); animation: challengeArrive .45s cubic-bezier(.2,1.4,.4,1) both; }
+.challenge-card div { min-width: 0; }.challenge-card span { display: block; color: var(--coral); font-size: 9px; font-weight: 900; }.challenge-card strong { display: block; margin-top: 2px; font-size: 14px; }.challenge-card p { margin: 2px 0 0; color: #817970; font-size: 9px; }
+.challenge-card button { flex: 0 0 auto; min-height: 38px; padding: 0 12px; border: 0; border-radius: 12px; background: var(--coral); color: #fff; font-size: 11px; font-weight: 900; cursor: pointer; }
+@keyframes challengeArrive { from { opacity: 0; transform: translateY(8px) rotate(-1deg); } }
 .rank-link { width: 100%; margin-top: 10px; border: 0; background: transparent; color: #70685f; font-size: 12px; font-weight: 800; cursor: pointer; }
 .level-select-button { width: 100%; min-height: 48px; margin: 0 0 12px; padding: 8px 14px; border: 2px solid var(--ink); border-radius: 15px; background: #fff; box-shadow: 0 3px 0 var(--ink); display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; cursor: pointer; }
 .level-select-button span, .level-select-button i { color: #8c8479; font-size: 10px; font-style: normal; }.level-select-button strong { font-size: 14px; }
@@ -132,6 +136,7 @@ button:focus-visible { outline: 4px solid #3b82f6; outline-offset: 3px; }
 .level-map { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; margin: 22px 0 12px; }
 .level-card { --level-accent: var(--yellow); min-height: 142px; padding: 12px; border: 2px solid var(--ink); border-radius: 18px; background: linear-gradient(145deg,#fff 72%,var(--level-accent)); box-shadow: 3px 4px 0 var(--ink); text-align: left; cursor: pointer; position: relative; }
 .level-card > span { display: inline-block; padding: 3px 7px; border-radius: 99px; background: var(--level-accent); font-size: 9px; font-weight: 900; }.level-card strong { display: block; margin-top: 8px; font-size: 17px; }.level-card p { min-height: 32px; margin: 4px 0 8px; color: #766f66; font-size: 9px; line-height: 1.45; }.level-card i { color: #8d857c; font-size: 8px; font-style: normal; }
+.level-card small { display: block; margin-top: 7px; color: var(--coral); font-size: 8px; font-weight: 900; }
 .level-card.is-selected::after { content: '선택됨'; position: absolute; right: 8px; top: 8px; color: var(--coral); font: 700 12px 'Gaegu',cursive; }.level-card.is-locked { border-color: #c6c0b6; background: #ece9e3; box-shadow: 3px 4px 0 #c6c0b6; color: #918b82; cursor: not-allowed; }
 
 .game-screen { height: calc(100dvh - 64px); display: flex; flex-direction: column; }
@@ -155,6 +160,12 @@ button:focus-visible { outline: 4px solid #3b82f6; outline-offset: 3px; }
 @keyframes phaseFlash { from { opacity: .38; } to { opacity: 0; border-width: 0; } }
 .game-field.is-aiming { background: radial-gradient(circle at center, rgba(255,103,87,.1), transparent 60%); }
 .game-field.is-danger { background: radial-gradient(circle at center, rgba(255,103,87,.18), transparent 62%); }
+.game-field.is-captured { animation: captureFreeze .5s ease-out both; }
+.game-field.is-captured::after { content: ''; position: absolute; left: 50%; top: 50%; z-index: 13; width: 90px; height: 90px; translate: -50% -50%; border: 8px solid var(--yellow); border-radius: 50%; pointer-events: none; animation: captureRing .48s ease-out both; }
+.game-field.is-captured .cat-target { transition: none !important; animation: captureZoom .48s cubic-bezier(.2,1.4,.4,1) both; }
+@keyframes captureFreeze { 0%,35% { filter: saturate(1.4) contrast(1.05); } }
+@keyframes captureRing { from { opacity: 1; scale: .25; } to { opacity: 0; scale: 5.5; border-width: 1px; } }
+@keyframes captureZoom { 35% { scale: 1.17; } 100% { scale: .98; } }
 .cat-target { position: absolute; width: 142px; height: 208px; padding: 0; pointer-events: none; transition: left var(--move-ms,.36s) cubic-bezier(.2,.72,.3,1), top var(--move-ms,.36s) cubic-bezier(.2,.72,.3,1), transform var(--move-ms,.36s); z-index: 5; }
 .cat-target .cat-character { width: 100%; }
 .cat-target.attention-watch { filter: drop-shadow(0 7px 0 rgba(32,33,36,.08)); }.cat-target.attention-danger { z-index: 8; filter: drop-shadow(0 0 9px rgba(255,103,87,.3)); }
@@ -175,6 +186,7 @@ button:focus-visible { outline: 4px solid #3b82f6; outline-offset: 3px; }
 .dodge-fx strong { position: absolute; right: -12px; top: 2px; color: var(--coral); font: 700 25px 'Gaegu',cursive; text-shadow: 2px 2px 0 #fff; rotate: 8deg; }
 .gesture-coach { position: absolute; inset: 0; z-index: 16; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; background: rgba(255,248,231,.78); pointer-events: none; text-align: center; }
 .gesture-coach span { display: grid; place-items: center; width: 72px; height: 72px; border: 3px solid var(--ink); border-radius: 50%; background: #fff; box-shadow: 4px 5px 0 var(--ink); font-size: 36px; animation: coachFinger .8s ease-in-out infinite alternate; }.gesture-coach strong { font: 700 18px/1.35 'Gaegu',cursive; }
+.gesture-coach small { padding: 5px 9px; border-radius: 99px; background: var(--yellow); color: var(--ink); font-size: 10px; font-weight: 900; }
 .catch-feedback { position: absolute; left: 50%; top: 48%; translate: -50% -50%; z-index: 15; color: var(--ink); font: 700 31px 'Gaegu', cursive; text-shadow: 2px 2px 0 #fff, -2px -2px 0 #fff; pointer-events: none; animation: feedbackPop .55s ease-out both; }
 .catch-feedback.is-near { color: var(--coral); }
 @keyframes reticleLock { to { scale: .92; rotate: 4deg; } }
@@ -228,6 +240,7 @@ button:disabled { opacity: .6; cursor: wait; }
 .level-collection-card { position: relative; }.level-collection-card .collection-cat { height: 144px; }.level-collection-card .collection-cat .cat-character { width: 86px; margin-top: 24px; }
 .collection-level { display: inline-block; margin-top: 9px; padding: 2px 6px; border-radius: 99px; background: var(--yellow); font-size: 8px; font-weight: 900; }
 .level-collection-card strong { display: inline; margin-left: 5px; }.meme-collection-grid { margin-top: 17px; }
+.collection-best { display: block; margin-top: 7px; padding-top: 6px; border-top: 1px dashed #d8d0c4; color: var(--coral); font-size: 8px; font-weight: 900; }
 
 /* 관절 리그: 머리, 목, 몸통이 하나의 포즈 타임라인을 공유한다. */
 .cat-rig, .upper-rig, .body-rig { transition: transform .14s ease-out; }
@@ -304,6 +317,7 @@ button:disabled { opacity: .6; cursor: wait; }
 @keyframes stampSlam { from { opacity: 0; scale: 2.2; } }
 @keyframes burstSpin { from { scale: .4; rotate: -35deg; opacity: 0; } }
 .daily-score { margin: 8px 0 0; color: #70685f; font-size: 11px; }.daily-score strong { color: var(--coral); font-size: 17px; }
+.new-best-badge { display: inline-block; margin: 9px 0 0; padding: 5px 10px; border: 2px solid var(--ink); border-radius: 99px; background: var(--yellow); box-shadow: 2px 2px 0 var(--ink); font: 700 12px 'Gaegu',cursive; transform: rotate(-2deg); }
 .app-toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom)); translate: -50% 0; z-index: 100; width: min(88vw,440px); padding: 12px 16px; border-radius: 13px; background: rgba(32,33,36,.94); color: #fff; box-shadow: 0 4px 16px rgba(0,0,0,.2); text-align: center; font-size: 11px; animation: toastIn .25s ease-out both; }
 @keyframes toastIn { from { opacity: 0; translate: -50% 8px; } }
 

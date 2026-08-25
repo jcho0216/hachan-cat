@@ -1,5 +1,5 @@
 type GameCenterBridge = {
-  submitGameCenterLeaderBoardScore?: ((options: { score: string }) => Promise<void>) & { isSupported?: () => boolean };
+  submitGameCenterLeaderBoardScore?: ((options: { score: string }) => Promise<{ statusCode?: string } | undefined>) & { isSupported?: () => boolean };
   openGameCenterLeaderboard?: (() => Promise<void>) & { isSupported?: () => boolean };
 };
 
@@ -11,8 +11,8 @@ export async function submitDailyScore(score: number) {
   try {
     const api = await bridge();
     if (!api.submitGameCenterLeaderBoardScore || api.submitGameCenterLeaderBoardScore.isSupported?.() === false) return false;
-    await api.submitGameCenterLeaderBoardScore({ score: String(Math.max(0, Math.round(score))) });
-    return true;
+    const result = await api.submitGameCenterLeaderBoardScore({ score: String(Math.max(0, Math.round(score))) });
+    return result?.statusCode === 'SUCCESS';
   } catch { return false; }
 }
 

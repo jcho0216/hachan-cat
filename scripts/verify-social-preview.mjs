@@ -21,7 +21,8 @@ for (const marker of [
 }
 
 assert.ok(html.includes('/og-thumbnail.png?v=2'), '카카오 이미지 캐시를 갱신할 버전 URL이 필요합니다.');
-assert.equal(shareSource.match(/getTossShareLink\('intoss:\/\/hachan-cat', SHARE_PREVIEW_IMAGE_URL\)/g)?.length, 2, '승리·패배 토스 공유 링크에 OG 이미지 URL을 전달해야 합니다.');
+assert.ok(shareSource.includes('getTossShareLink(createCatchChallengeDeepLink(result), SHARE_PREVIEW_IMAGE_URL)'), '승리 공유 링크에 기록과 OG 이미지를 전달해야 합니다.');
+assert.ok(shareSource.includes('getTossShareLink(createLossChallengeDeepLink(loss), SHARE_PREVIEW_IMAGE_URL)'), '패배 공유 링크에 복수 대상과 OG 이미지를 전달해야 합니다.');
 assert.ok(shareSource.includes("https://hachan-cat.vercel.app/og-thumbnail.png?v=2"), '토스 공유 이미지는 HTTPS 절대 URL이어야 합니다.');
 
 console.log('✓ 1200×630 social preview and Open Graph metadata verified');

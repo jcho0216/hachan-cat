@@ -10,7 +10,8 @@
     "preview": "vite preview --host 0.0.0.0 --configLoader runner",
     "test:movements": "node --experimental-strip-types scripts/verify-movements.mjs",
     "test:cards": "node --experimental-strip-types scripts/verify-card-faces.mjs",
-    "test:social": "node scripts/verify-social-preview.mjs"
+    "test:social": "node scripts/verify-social-preview.mjs",
+    "test:game-loop": "node --experimental-strip-types scripts/verify-game-loop.mjs"
   },
   "dependencies": {
     "@apps-in-toss/web-framework": "^2.4.1",

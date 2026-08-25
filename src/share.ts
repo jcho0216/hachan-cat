@@ -2,6 +2,7 @@ import { getLevel } from './levels';
 import type { GameLoss, GameResult } from './types';
 import { getLossCopy } from './lossCopy';
 import { createCardCatSvg } from './catAppearance';
+import { createCatchChallengeDeepLink, createCatchChallengeWebUrl, createLossChallengeDeepLink, createLossChallengeWebUrl } from './challenge';
 
 const escapeXml = (value: string) => value.replace(/[<>&'\"]/g, (char) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' })[char]!);
 const SHARE_PREVIEW_IMAGE_URL = 'https://hachan-cat.vercel.app/og-thumbnail.png?v=2';
@@ -104,15 +105,16 @@ export async function saveLossMemeCard(loss: GameLoss) {
 
 export async function shareChallenge(result: GameResult) {
   const message = `Lv.${result.level} ${result.levelName}, ${(result.elapsedMs / 1000).toFixed(1)}초 만에 잡음.\n이 기록 넘을 수 있겠어? 😼`;
+  const webUrl = createCatchChallengeWebUrl(result);
   try {
     const { getTossShareLink, share } = await import('@apps-in-toss/web-framework');
-    const link = await getTossShareLink('intoss://hachan-cat', SHARE_PREVIEW_IMAGE_URL);
+    const link = await getTossShareLink(createCatchChallengeDeepLink(result), SHARE_PREVIEW_IMAGE_URL);
     await share({ message: `${message}\n${link}` });
   } catch {
     if (navigator.share) {
-      await navigator.share({ title: '하찮냥', text: message, url: window.location.href });
+      await navigator.share({ title: '하찮냥', text: message, url: webUrl });
     } else {
-      await navigator.clipboard.writeText(`${message}\n${window.location.href}`);
+      await navigator.clipboard.writeText(`${message}\n${webUrl}`);
     }
   }
 }
@@ -120,12 +122,13 @@ export async function shareChallenge(result: GameResult) {
 export async function shareLossChallenge(loss: GameLoss) {
   const detail = loss.reason === 'time' ? '15초 동안 못 잡았어' : '기회 5번을 다 놓쳤어';
   const message = `Lv.${loss.level} ${loss.levelName}, 나는 ${detail}.\n너는 잡을 수 있겠어? 😿`;
+  const webUrl = createLossChallengeWebUrl(loss);
   try {
     const { getTossShareLink, share } = await import('@apps-in-toss/web-framework');
-    const link = await getTossShareLink('intoss://hachan-cat', SHARE_PREVIEW_IMAGE_URL);
+    const link = await getTossShareLink(createLossChallengeDeepLink(loss), SHARE_PREVIEW_IMAGE_URL);
     await share({ message: `${message}\n${link}` });
   } catch {
-    if (navigator.share) await navigator.share({ title: '하찮냥 놓친 기록', text: message, url: window.location.href });
-    else await navigator.clipboard.writeText(`${message}\n${window.location.href}`);
+    if (navigator.share) await navigator.share({ title: '하찮냥 놓친 기록', text: message, url: webUrl });
+    else await navigator.clipboard.writeText(`${message}\n${webUrl}`);
   }
 }
