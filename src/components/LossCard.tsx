@@ -1,11 +1,12 @@
 import { CatCharacter } from './CatCharacter';
 import { getLevel } from '../levels';
 import type { GameLoss } from '../types';
-import { getLossCopy } from '../lossCopy';
+import { getClosenessLabel, getLossCopy } from '../lossCopy';
 
 export function LossCard({ loss }: { loss: GameLoss }) {
   const level = getLevel(loss.level);
   const copy = getLossCopy(loss);
+  const closeness = getClosenessLabel(loss.closestDistance);
 
   return (
     <article className="reward-card loss-card">
@@ -21,7 +22,7 @@ export function LossCard({ loss }: { loss: GameLoss }) {
       <h2>{copy.title}</h2>
       <p className="reward-card__description">{copy.description}</p>
       <div className="score-row">
-        <div><strong>패</strong><span>이번 결과</span></div>
+        <div><strong>{closeness}</strong><span>가장 가까이</span></div>
         <div><strong>{loss.attempts}회</strong><span>시도</span></div>
         <div><strong>{(loss.elapsedMs / 1000).toFixed(1)}초</strong><span>플레이 시간</span></div>
       </div>

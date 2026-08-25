@@ -9,7 +9,7 @@ function context() {
   return audioContext;
 }
 
-export function playSound(kind: 'aim' | 'near' | 'miss' | 'hit' | 'catch' | 'phase', enabled: boolean) {
+export function playSound(kind: 'aim' | 'near' | 'miss' | 'hit' | 'catch' | 'phase' | 'countdown', enabled: boolean) {
   if (!enabled || document.hidden) return;
   const ctx = context();
   if (!ctx) return;
@@ -20,12 +20,13 @@ export function playSound(kind: 'aim' | 'near' | 'miss' | 'hit' | 'catch' | 'pha
     hit: [[240, .04, .06], [480, .06, .08]],
     catch: [[330, .05, .07], [520, .06, .09], [780, .09, .13]],
     phase: [[440, .025, .04], [590, .035, .06]],
+    countdown: [[720, .035, .045]],
   };
   let offset = 0;
   notes[kind].forEach(([frequency, duration, volume]) => {
     const oscillator = ctx.createOscillator();
     const gain = ctx.createGain();
-    oscillator.type = kind === 'miss' ? 'sawtooth' : 'sine';
+    oscillator.type = kind === 'miss' ? 'sawtooth' : kind === 'countdown' ? 'square' : 'sine';
     oscillator.frequency.setValueAtTime(frequency, ctx.currentTime + offset);
     gain.gain.setValueAtTime(volume, ctx.currentTime + offset);
     gain.gain.exponentialRampToValueAtTime(.001, ctx.currentTime + offset + duration);

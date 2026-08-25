@@ -17,7 +17,8 @@ import type { CatBehavior } from './levels';
 import { challengeDelta, parseChallengeTarget, type ChallengeTarget } from './challenge';
 import { LEVEL_BESTS_KEY, readLevelBests, recordLevelBest } from './records';
 import { nextUnlockedLevel } from './progress';
-import { isCatchGesture } from './inputRules';
+import { distanceFromCatch, isCatchGesture } from './inputRules';
+import { urgencySecondFor } from './timing';
 
 type Screen = 'home' | 'levels' | 'game' | 'ending' | 'result' | 'loss' | 'collection';
 type Aim = MovementAim & { x: number; y: number; clientX: number; clientY: number; startedAt: number; traveledPx: number };
@@ -120,6 +121,7 @@ function App() {
   const hiddenAtRef = useRef<number | null>(null);
   const reactedToAimRef = useRef(false);
   const practiceAttemptRef = useRef(false);
+  const urgencySecondRef = useRef(0);
   const toastTimerRef = useRef(0);
   const difficulty = getLevel(activeLevel);
   const selectedDifficulty = getLevel(selectedLevel);
@@ -163,6 +165,12 @@ function App() {
     const clock = window.setInterval(() => {
       const left = Math.max(0, difficulty.roundMs - (Date.now() - startedAt.current));
       setRemainingMs(left);
+      const urgencySecond = urgencySecondFor(left);
+      if (!finishedRef.current && urgencySecond && urgencySecondRef.current !== urgencySecond) {
+        urgencySecondRef.current = urgencySecond;
+        playSound('countdown', soundEnabled);
+        void haptic(urgencySecond === 1 ? 'tickMedium' : 'tickWeak');
+      }
       if (left === 0 && !finishedRef.current) {
         finishedRef.current = true;
         setLossResult({ level: difficulty.id, levelName: difficulty.name, reason: 'time', elapsedMs: difficulty.roundMs, attempts: attemptsRef.current, nearMisses: nearMissesRef.current, closestDistance: closestDistanceRef.current, mode });
@@ -175,6 +183,7 @@ function App() {
 
     let moveTimer = 0;
     const move = () => {
+      if (finishedRef.current) return;
       const step = moveStep.current++;
       const activeBehavior = Math.floor(step / 4) % 2 === 0 ? difficulty.behavior : difficulty.secondaryBehavior;
       if (step % 4 === 0) {
@@ -207,7 +216,7 @@ function App() {
     setMode(nextMode);
     setActiveChallenge(nextMode === 'challenge' ? incomingChallenge : null);
     startedAt.current = Date.now();
-    moveStep.current = 0; attemptsRef.current = 0; missesRef.current = 0; bossHitsRef.current = 0; finishedRef.current = false; aimRef.current = null; positionRef.current = START_POSITION; reactedToAimRef.current = false; practiceAttemptRef.current = false;
+    moveStep.current = 0; attemptsRef.current = 0; missesRef.current = 0; bossHitsRef.current = 0; urgencySecondRef.current = 0; finishedRef.current = false; aimRef.current = null; positionRef.current = START_POSITION; reactedToAimRef.current = false; practiceAttemptRef.current = false;
     nearMissesRef.current = 0; closestDistanceRef.current = Number.POSITIVE_INFINITY;
     setAttempts(0); setMisses(0); setNearMisses(0); setBossHits(0); setPose('wiggle'); setPosition(START_POSITION);
     setPhaseBehavior(getLevel(safeLevel).behavior); setPhaseKey((value) => value + 1);
@@ -308,9 +317,9 @@ function App() {
     const catX = head.left + head.width / 2;
     const catY = head.top + head.height / 2;
     const distance = Math.hypot(event.clientX - catX, event.clientY - catY);
-    closestDistanceRef.current = Math.min(closestDistanceRef.current, distance);
     const visualRadius = Math.min(head.width, head.height) * .48;
     const hitRadius = Math.min(difficulty.hitRadius, visualRadius);
+    closestDistanceRef.current = Math.min(closestDistanceRef.current, distanceFromCatch(distance, hitRadius));
     const accuracy = clamp(Math.round(100 - Math.max(0, distance - 8) * .85), 0, 100);
     const elapsedMs = Date.now() - startedAt.current;
     const heldMs = Date.now() - currentAim.startedAt;
@@ -456,7 +465,7 @@ function App() {
         <button className="text-button" onClick={() => setScreen('home')}>홈으로</button>
       </section>}
 
-      {screen === 'game' && <section className={`game-screen page-enter behavior-${phaseBehavior} phase-${phaseKey % 2}`}>
+      {screen === 'game' && <section className={`game-screen page-enter behavior-${phaseBehavior} phase-${phaseKey % 2} ${remainingMs <= 3000 ? 'is-urgent' : ''}`}>
         <div className="game-hud"><div className="attempt-counter"><span>Lv.{difficulty.id} {difficulty.name}</span><strong>시도 {attempts}회</strong></div>
           <div className="game-resources"><div className="chance-status"><span>기회 {difficulty.attemptsAllowed - misses}</span><div className="chance-lives" aria-label={`남은 기회 ${difficulty.attemptsAllowed - misses}`}>{Array.from({ length: difficulty.attemptsAllowed }, (_, index) => <i key={index} className={index < misses ? 'is-broken' : ''}>●</i>)}</div></div>
           {(difficulty.hitsRequired ?? 1) > 1 && <div className="boss-status"><span>명중 {bossHits}/{difficulty.hitsRequired}</span><div className="boss-lives" aria-label={`남은 명중 ${(difficulty.hitsRequired ?? 1) - bossHits}`}>{Array.from({ length: difficulty.hitsRequired ?? 1 }, (_, index) => <i key={index} className={index < bossHits ? 'is-broken' : ''}>♛</i>)}</div></div>}</div>

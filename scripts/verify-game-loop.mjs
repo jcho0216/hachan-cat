@@ -3,7 +3,9 @@ import { challengeDelta, createCatchChallengeDeepLink, createCatchChallengeWebUr
 import { calculateDailyScore } from '../src/scoring.ts';
 import { isBetterResult, recordLevelBest } from '../src/records.ts';
 import { nextUnlockedLevel } from '../src/progress.ts';
-import { isCatchGesture } from '../src/inputRules.ts';
+import { distanceFromCatch, isCatchGesture } from '../src/inputRules.ts';
+import { getClosenessLabel } from '../src/lossCopy.ts';
+import { urgencySecondFor } from '../src/timing.ts';
 
 const result = { level: 7, elapsedMs: 3240, attempts: 2, accuracy: 91, grade: 'A', levelName: '깜빡냥', nearMisses: 1, verdict: '', reward: {}, mode: 'challenge' };
 const catchLink = createCatchChallengeDeepLink(result);
@@ -33,5 +35,12 @@ assert.equal(nextUnlockedLevel(3, 3, 'campaign'), 4, '캠페인 포획만 다음
 assert.equal(isCatchGesture(80, 80), false, '빠른 탭으로는 잡히면 안 됩니다.');
 assert.equal(isCatchGesture(300, 8), false, '머리 위에서 누르고만 있어도 잡히면 안 됩니다.');
 assert.equal(isCatchGesture(220, 48), true, '누른 채 실제로 쫓아온 손만 포획할 수 있어야 합니다.');
+assert.equal(distanceFromCatch(72, 50), 22, '근접도는 머리 중심이 아니라 성공 판정선까지의 부족 거리여야 합니다.');
+assert.equal(distanceFromCatch(40, 50), 0, '성공 판정선 안쪽 거리는 0이어야 합니다.');
+assert.equal(urgencySecondFor(3001), 0, '막판 3초 전에는 긴급 상태가 아니어야 합니다.');
+assert.equal(urgencySecondFor(2999), 3, '막판 카운트다운은 3초부터 시작해야 합니다.');
+assert.equal(urgencySecondFor(1), 1, '마지막 순간까지 1초 긴급 상태를 유지해야 합니다.');
+assert.equal(getClosenessLabel(Number.POSITIVE_INFINITY), '—', '시도하지 않은 패배에는 근접도를 만들지 않아야 합니다.');
+assert.equal(getClosenessLabel(24), '코앞', '가까운 패배를 재도전 단서로 보여줘야 합니다.');
 
-console.log('✓ challenge links, fair scoring, and personal bests verified');
+console.log('✓ challenge links, fair scoring, records, and tension feedback verified');

@@ -4,6 +4,14 @@ export type LossCopy = { eyebrow: string; title: string; description: string; qu
 
 const picks = <T,>(items: T[], seed: number) => items[Math.abs(seed) % items.length];
 
+export function getClosenessLabel(distance: number) {
+  if (!Number.isFinite(distance)) return '—';
+  if (distance <= 8) return '털끝';
+  if (distance <= 25) return '코앞';
+  if (distance <= 60) return '근처';
+  return '멀리';
+}
+
 export function getLossCopy(loss: GameLoss): LossCopy {
   const seed = loss.level * 31 + loss.attempts * 7 + loss.nearMisses * 13 + Math.round(loss.elapsedMs / 250);
   if (loss.closestDistance <= 8) return {
