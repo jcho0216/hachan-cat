@@ -11,7 +11,7 @@ npm run dev
 
 ## 앱인토스 설정
 
-`granite.config.ts`의 `appName`, `displayName`, `icon`을 앱인토스 콘솔 정보와 정확히 맞춰주세요.
+`granite.config.ts`의 `appName`, `displayName`, `icon`을 앱인토스 콘솔 정보와 정확히 맞춰주세요. 현재 `icon`에는 운영 도메인의 600×600 PNG가 설정되어 있으며, 콘솔에 로고를 업로드한 뒤에는 콘솔에서 복사한 동일 로고 URL로 교체하세요.
 
 Vercel과 일반 웹 배포용 빌드는 다음 명령을 사용합니다.
 

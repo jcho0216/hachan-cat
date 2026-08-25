@@ -3,13 +3,19 @@ import { readFile } from 'node:fs/promises';
 
 const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 const png = await readFile(new URL('../public/og-thumbnail.png', import.meta.url));
+const appIcon = await readFile(new URL('../public/hachan-cat-icon.png', import.meta.url));
 const shareSource = await readFile(new URL('../src/share.ts', import.meta.url), 'utf8');
 const viteConfig = await readFile(new URL('../vite.config.ts', import.meta.url), 'utf8');
+const graniteConfig = await readFile(new URL('../granite.config.ts', import.meta.url), 'utf8');
 const vercelConfig = JSON.parse(await readFile(new URL('../vercel.json', import.meta.url), 'utf8'));
 
 assert.equal(png.toString('ascii', 1, 4), 'PNG', '공유 썸네일은 PNG 파일이어야 합니다.');
 assert.equal(png.readUInt32BE(16), 1200, '공유 썸네일 너비는 1200px이어야 합니다.');
 assert.equal(png.readUInt32BE(20), 630, '공유 썸네일 높이는 630px이어야 합니다.');
+assert.equal(appIcon.toString('ascii', 1, 4), 'PNG', '앱 아이콘은 확장자만 PNG인 JPEG이면 안 됩니다.');
+assert.equal(appIcon.readUInt32BE(16), 600, '앱인토스 아이콘 너비는 600px이어야 합니다.');
+assert.equal(appIcon.readUInt32BE(20), 600, '앱인토스 아이콘 높이는 600px이어야 합니다.');
+assert.ok(graniteConfig.includes("icon: 'https://hachan-cat.vercel.app/hachan-cat-icon.png?v=3'"), 'AIT 설정에는 비어 있지 않은 HTTPS 앱 아이콘 URL이 필요합니다.');
 
 for (const marker of [
   'property="og:title"',

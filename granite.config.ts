@@ -5,7 +5,7 @@ export default defineConfig({
   brand: {
     displayName: '하찮냥',
     primaryColor: '#FF6B6B',
-    icon: '',
+    icon: 'https://hachan-cat.vercel.app/hachan-cat-icon.png?v=3',
   },
   web: {
     host: 'localhost',
