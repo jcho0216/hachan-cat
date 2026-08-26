@@ -1,5 +1,6 @@
 import { CatCharacter } from './CatCharacter';
 import type { DuelInvitePreview } from '../duel/types';
+import { withNim } from '../duel/nickname';
 
 type Props = {
   preview: DuelInvitePreview;
@@ -26,10 +27,10 @@ export function DuelInviteAccept({ preview, remainingSeconds, busy, onAccept, on
   const terminal = !ready && !loading ? terminalCopy[preview.state as keyof typeof terminalCopy] ?? terminalCopy.error : null;
   return <section className={`duel-invite-accept page-enter ${ready ? 'is-ready' : ''}`}>
     <span className="duel-invite-ticket">친구 냥탈전</span>
-    <h1>{loading ? '초대장 펼치는 중' : ready ? <>{preview.hostName},<br /><em>시비를 걸었음.</em></> : terminal?.[0]}</h1>
+    <h1>{loading ? '초대장 펼치는 중' : ready ? <>{withNim(preview.hostName)},<br /><em>시비를 걸었음.</em></> : terminal?.[0]}</h1>
     <p>{loading ? '누가 얼마나 진심인지 확인 중.' : ready ? '같은 고양이, 같은 시작. 먼저 잡는 손만 승리.' : terminal?.[1]}</p>
     <div className="duel-invite-cat"><CatCharacter pose={ready ? 'taunt' : loading ? 'peek' : 'butt'} evil={ready ? 7 : 3} /><span>{ready ? '어쩔?' : '?'}</span></div>
-    {ready && <div className="duel-invite-versus"><div><small>도전자</small><strong>{preview.hostName}</strong></div><b>VS</b><div><small>수락하면</small><strong>바로 동시 시작</strong></div></div>}
+    {ready && <div className="duel-invite-versus"><div><small>도전자</small><strong>{withNim(preview.hostName)}</strong></div><b>VS</b><div><small>수락하면</small><strong>바로 동시 시작</strong></div></div>}
     {ready && <div className="duel-rule-chips"><span>⏱ 15초</span><span>✋ 기회 5번</span><span>🏁 선착순 1명</span></div>}
     {ready && <div className="duel-invite-expiry"><span>초대장 유효 시간</span><strong>{Math.floor(remainingSeconds / 60)}:{String(remainingSeconds % 60).padStart(2, '0')}</strong></div>}
     {loading ? <div className="duel-dots" aria-label="초대장 확인 중"><i /><i /><i /></div>

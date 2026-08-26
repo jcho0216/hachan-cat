@@ -10,6 +10,8 @@ const invite = readFileSync(new URL('../src/duel/invite.ts', import.meta.url), '
 const taunts = readFileSync(new URL('../src/duel/taunts.ts', import.meta.url), 'utf8');
 const homeCard = readFileSync(new URL('../src/components/DuelHomeCard.tsx', import.meta.url), 'utf8');
 const finishBurst = readFileSync(new URL('../src/components/DuelFinishBurst.tsx', import.meta.url), 'utf8');
+const nameSheet = readFileSync(new URL('../src/components/BattleNameSheet.tsx', import.meta.url), 'utf8');
+const nickname = readFileSync(new URL('../src/duel/nickname.ts', import.meta.url), 'utf8');
 const styles = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
 const spec = readFileSync(new URL('../docs/ONLINE_DUEL_SPEC.md', import.meta.url), 'utf8');
 
@@ -17,7 +19,7 @@ for (const table of ['duel_queue', 'duel_matches', 'duel_runs', 'duel_profiles',
   assert.match(migration, new RegExp(`create table if not exists public\\.${table}`), `${table} schema missing`);
   assert.match(migration, new RegExp(`alter table public\\.${table} enable row level security`), `${table} RLS missing`);
 }
-for (const rpc of ['duel_find_or_join', 'duel_start_ghost', 'duel_claim', 'duel_finish_ghost', 'duel_forfeit', 'duel_mark_failure', 'duel_settle_failure', 'duel_get_profile', 'duel_weekly_league', 'duel_create_invite', 'duel_preview_invite', 'duel_accept_invite', 'duel_get_invite', 'duel_cancel_invite']) {
+for (const rpc of ['duel_find_or_join', 'duel_start_ghost', 'duel_claim', 'duel_finish_ghost', 'duel_forfeit', 'duel_mark_failure', 'duel_settle_failure', 'duel_get_profile', 'duel_set_nickname', 'duel_weekly_league', 'duel_create_invite', 'duel_preview_invite', 'duel_accept_invite', 'duel_get_invite', 'duel_cancel_invite']) {
   assert.match(migration, new RegExp(`create or replace function public\\.${rpc}`), `${rpc} missing`);
   assert.match(migration, new RegExp(`grant execute on function public\\.${rpc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`), `${rpc} authenticated grant missing`);
 }
@@ -36,6 +38,10 @@ assert.match(migration, /match_source in \('random', 'ghost', 'invite'\)/, 'matc
 assert.match(migration, /match_source <> 'invite'/, 'friend matches must not award weekly league points');
 assert.match(migration, /friend_matches = duel_profiles\.friend_matches \+ 1/, 'friend record isolation missing');
 assert.match(migration, /alter publication supabase_realtime add table public\.duel_invites/, 'invite realtime publication missing');
+assert.match(migration, /create or replace function public\.duel_clean_nickname/, 'canonical server nickname validation missing');
+assert.match(migration, /clean_name := trim\(regexp_replace\(clean_name, '\\s\+', ' ', 'g'\)\)/, 'server nickname cleanup must trim after removing invalid characters');
+assert.match(migration, /left join public\.duel_profiles profile on profile\.user_id = weekly_wins\.user_id/, 'weekly league must use the current profile nickname');
+assert.match(migration, /create trigger duel_matches_validate_nickname/, 'match snapshots must enforce canonical nickname validation');
 
 for (const behavior of ['beginDuel', 'resolveDuelCatch', 'resolveDuelFailure', 'finishGhostDuel', 'duelResult', 'duelLeague', 'startFriendDuelInvite', 'acceptFriendDuelInvite', 'watchDuelInvite', 'switchInviteToRandom']) {
   assert.ok(app.includes(behavior), `${behavior} client flow missing`);
@@ -49,7 +55,12 @@ assert.match(finishBurst, /setTimeout\(\(\) => doneRef\.current\(\), 2_200\)/, '
 for (const copy of ['그것밖에 안 되냐?', '거의 잡았네. 거의.', '한 번에 잡았는데, 넌 뭐 함?']) assert.ok(taunts.includes(copy), `contextual taunt missing: ${copy}`);
 for (const mode of ['바로 붙기', '친구 지목전', '시비 걸기']) assert.ok(homeCard.includes(mode), `battle mode hierarchy missing: ${mode}`);
 assert.match(styles, /html, body, #root \{ height: 100%;[^}]+overflow: hidden;/, 'WebView root must not restore a hidden page scroll position');
-for (const rpc of ['duel_find_or_join', 'duel_start_ghost', 'duel_claim', 'duel_finish_ghost', 'duel_forfeit', 'duel_mark_failure', 'duel_settle_failure', 'duel_get_profile', 'duel_weekly_league', 'duel_create_invite', 'duel_preview_invite', 'duel_accept_invite', 'duel_get_invite', 'duel_cancel_invite']) {
+assert.match(app, /pending\.intent === 'accept'\) await acceptFriendDuelInviteNow\(savedName\)/, 'invite acceptance must resume after first-time name confirmation');
+assert.match(app, /pending\.intent === 'invite'\) await startFriendDuelInviteNow/, 'friend invite creation must resume after first-time name confirmation');
+assert.match(nameSheet, /배틀에서 뭐라고 불러\?/, 'battle-name prompt copy missing');
+assert.match(nameSheet, /하찮게 다시/, 'one-tap random name fallback missing');
+assert.match(nickname, /CONFIRMED_KEY/, 'legacy generated names must remain distinguishable from confirmed player names');
+for (const rpc of ['duel_find_or_join', 'duel_start_ghost', 'duel_claim', 'duel_finish_ghost', 'duel_forfeit', 'duel_mark_failure', 'duel_settle_failure', 'duel_get_profile', 'duel_set_nickname', 'duel_weekly_league', 'duel_create_invite', 'duel_preview_invite', 'duel_accept_invite', 'duel_get_invite', 'duel_cancel_invite']) {
   assert.ok(client.includes(`'${rpc}'`), `${rpc} client binding missing`);
 }
 assert.match(client, /auth\.getUser\(\)/, 'persisted anonymous session must be verified with the auth server');

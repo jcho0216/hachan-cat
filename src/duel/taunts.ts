@@ -47,7 +47,7 @@ export function getOpponentCatchReaction(outcome: DuelOutcome) {
   const attemptLabel = attempts ? ` · ${attempts}번 시도` : '';
   return {
     kicker: match.opponentKind === 'ghost' ? '과거의 손이 먼저 낚아챔' : '상대 손이 먼저 낚아챔',
-    title: `${match.opponentName} 선착순`,
+    title: `${match.opponentName.endsWith('님') ? match.opponentName : `${match.opponentName}님`} 선착순`,
     detail: `${timing}${attemptLabel}`,
     taunt,
   };

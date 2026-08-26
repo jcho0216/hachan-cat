@@ -4,18 +4,20 @@ type Props = {
   configured: boolean;
   onlineCount: number;
   profile: DuelProfile | null;
+  nickname: string;
   onPlay: () => void;
   onInvite: () => void;
   onLeague: () => void;
+  onEditName: () => void;
 };
 
-export function DuelHomeCard({ configured, onlineCount, profile, onPlay, onInvite, onLeague }: Props) {
+export function DuelHomeCard({ configured, onlineCount, profile, nickname, onPlay, onInvite, onLeague, onEditName }: Props) {
   const record = profile?.matches ? `${profile.wins}승 ${profile.losses}패${profile.currentStreak ? ` · ${profile.currentStreak}연승` : ''}` : '랭크 첫 판 대기 중';
   const friendRecord = profile?.friendMatches ? `친구전 ${profile.friendWins}승 ${profile.friendLosses}패` : '친구전 아직 없음';
   return <article className={`duel-home-card ${configured ? '' : 'is-offline'}`}>
     <header>
       <div><span className="duel-live"><i />{configured ? onlineCount > 1 ? `LIVE · ${onlineCount}명` : 'LIVE' : '준비 중'}</span><strong>온라인 냥탈전</strong></div>
-      <button onClick={onLeague} disabled={!configured}>주간 리그 <span>›</span></button>
+      <div className="duel-home-tools"><button className="duel-name-chip" onClick={onEditName} disabled={!configured} aria-label={`배틀 이름 ${nickname}, 수정`}>{nickname}<span>✎</span></button><button onClick={onLeague} disabled={!configured}>리그 <span>›</span></button></div>
     </header>
     <div className="duel-mode-grid">
       <button className="duel-mode-card is-random" onClick={onPlay} disabled={!configured}>

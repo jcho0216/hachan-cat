@@ -18,7 +18,7 @@ async function player(label) {
   assert.ifError(signed.error);
   assert.ok(signed.data.user?.id, `${label} anonymous auth failed`);
   createdUsers.push(signed.data.user.id);
-  return { api, id: signed.data.user.id, name: `QA ${label.slice(0, 8)} ${Date.now().toString(36).slice(-4)}` };
+  return { api, id: signed.data.user.id, name: `QA${label.replace(/[^a-z]/gi, '').slice(0, 4)}${Date.now().toString(36).slice(-3)}` };
 }
 
 async function rpc(api, name, args = {}) {
@@ -81,8 +81,17 @@ try {
   const oneVisibleProfiles = await one.api.from('duel_profiles').select('user_id');
   assert.ifError(oneVisibleProfiles.error);
   assert.deepEqual(oneVisibleProfiles.data.map((profile) => profile.user_id), [one.id], 'RLS must expose only the caller profile');
+  const winner = oneClaim.didWin ? one : two;
+  const renamedWinner = `승자${Date.now().toString(36).slice(-4)}`;
+  const renamedProfile = await rpc(winner.api, 'duel_set_nickname', { p_nickname: renamedWinner });
+  assert.equal(renamedProfile.nickname, renamedWinner, 'nickname RPC must update the current profile immediately');
+  const reservedName = await winner.api.rpc('duel_set_nickname', { p_nickname: '관리자' });
+  assert.ok(reservedName.error, 'reserved nickname must be rejected by the server');
+  const shortName = await winner.api.rpc('duel_set_nickname', { p_nickname: '냥' });
+  assert.ok(shortName.error, 'one-character nickname must be rejected by the server');
   const league = await rpc(one.api, 'duel_weekly_league');
   assert.ok(league.players.some((entry) => entry.points === 3), 'live win must award three league points');
+  assert.ok(league.players.some((entry) => entry.nickname === renamedWinner), 'weekly league must use the latest profile nickname');
 
   const friendHost = await player('friend-host');
   const friendGuest = await player('friend-guest');
@@ -193,7 +202,7 @@ try {
   const survived = await rpc(survivor.api, 'duel_settle_failure', { p_match_id: survivalJoin.match.id });
   assert.equal(survived.didWin, true, 'one-sided failure must award a survival win');
 
-  console.log('✓ remote auth, random and friend matching, explicit invite acceptance, one-seat lock, invite Realtime, isolated friend records, atomic winner, ghost, forfeit, draw, profile, and weighted league verified');
+  console.log('✓ remote auth, battle names, reserved-name rejection, current-name league, random and friend matching, explicit invite acceptance, one-seat lock, invite Realtime, isolated friend records, atomic winner, ghost, forfeit, draw, profile, and weighted league verified');
 } finally {
   for (const userId of createdUsers.reverse()) {
     const removed = await admin.auth.admin.deleteUser(userId);

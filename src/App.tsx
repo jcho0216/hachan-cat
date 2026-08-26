@@ -33,13 +33,15 @@ import { DuelLeague } from './components/DuelLeague';
 import { DuelInviteAccept } from './components/DuelInviteAccept';
 import { DuelInviteLobby } from './components/DuelInviteLobby';
 import { DuelFinishBurst } from './components/DuelFinishBurst';
+import { BattleNameSheet, type BattleNameIntent } from './components/BattleNameSheet';
 import { isDuelConfigured } from './duel/config';
-import { duelNickname as getDuelNickname } from './duel/nickname';
+import { duelNickname as getDuelNickname, isDuelNicknameConfirmed, saveDuelNickname, withNim } from './duel/nickname';
 import { clearBattleInviteToken, parseBattleInviteToken, readStoredBattleInviteToken, shareBattleInvite, storeBattleInviteToken, stripBattleInviteFromUrl } from './duel/invite';
 import type { DuelInvite, DuelInvitePreview, DuelLeague as DuelLeagueData, DuelMatch, DuelOutcome, DuelProfile } from './duel/types';
 
 type Screen = 'home' | 'levels' | 'game' | 'ending' | 'result' | 'loss' | 'collection' | 'duelLobby' | 'duelReady' | 'duelBurst' | 'duelResult' | 'duelLeague' | 'duelInvite' | 'duelInviteLobby';
 type Aim = MovementAim & { x: number; y: number; clientX: number; clientY: number; startedAt: number; traveledPx: number };
+type PendingBattleName = { intent: BattleNameIntent; outcome?: DuelOutcome | null };
 
 const START_POSITION: Position = { x: 50, y: 50, tilt: 0 };
 const COLLECTION_KEY = 'hachan-cat-collection-v1';
@@ -159,7 +161,11 @@ function App() {
   const [duelInviteBusy, setDuelInviteBusy] = useState(false);
   const [duelInviteRemaining, setDuelInviteRemaining] = useState(0);
   const [duelInviteShareOutcome, setDuelInviteShareOutcome] = useState<DuelOutcome | null>(null);
-  const duelNickname = useMemo(getDuelNickname, []);
+  const [duelNickname, setDuelNickname] = useState(getDuelNickname);
+  const [duelNameConfirmed, setDuelNameConfirmed] = useState(isDuelNicknameConfirmed);
+  const [pendingBattleName, setPendingBattleName] = useState<PendingBattleName | null>(null);
+  const [duelNameBusy, setDuelNameBusy] = useState(false);
+  const [duelNameError, setDuelNameError] = useState('');
   const daily = useMemo(() => getDailyChallenge(), []);
 
   const fieldRef = useRef<HTMLDivElement>(null);
@@ -514,7 +520,53 @@ function App() {
     } finally { setDuelInviteBusy(false); }
   }
 
-  async function startFriendDuelInvite(outcome: DuelOutcome | null = null) {
+  function requestFriendDuelInvite(outcome: DuelOutcome | null = null) {
+    if (!duelNameConfirmed) { setDuelNameError(''); setPendingBattleName({ intent: 'invite', outcome }); return; }
+    void startFriendDuelInviteNow(outcome, duelNickname);
+  }
+
+  function requestFriendDuelAccept() {
+    if (!duelNameConfirmed) { setDuelNameError(''); setPendingBattleName({ intent: 'accept' }); return; }
+    void acceptFriendDuelInviteNow(duelNickname);
+  }
+
+  function requestDuelMatch() {
+    if (!duelNameConfirmed) { setDuelNameError(''); setPendingBattleName({ intent: 'match' }); return; }
+    void beginDuelNow(duelNickname);
+  }
+
+  function requestBattleNameEdit() {
+    setDuelNameError('');
+    setPendingBattleName({ intent: 'edit' });
+  }
+
+  async function confirmBattleName(nickname: string, source: 'typed' | 'random') {
+    const pending = pendingBattleName;
+    if (!pending || duelNameBusy) return;
+    setDuelNameBusy(true);
+    setDuelNameError('');
+    try {
+      const savedName = saveDuelNickname(nickname);
+      setDuelNickname(savedName);
+      setDuelNameConfirmed(true);
+      try {
+        const profile = await (await duelApi()).setDuelNickname(savedName);
+        setDuelProfile(profile);
+      } catch {
+        // 실제 대전 RPC도 이름을 전달하므로 일시적인 프로필 동기화 실패가 진입을 막지는 않는다.
+      }
+      setPendingBattleName(null);
+      track(pending.intent === 'edit' ? 'duel_name_edit' : 'duel_name_confirm', { source, length: savedName.length, intent: pending.intent });
+      if (pending.intent === 'match') await beginDuelNow(savedName);
+      if (pending.intent === 'invite') await startFriendDuelInviteNow(pending.outcome ?? null, savedName);
+      if (pending.intent === 'accept') await acceptFriendDuelInviteNow(savedName);
+      if (pending.intent === 'edit') showNotice(`${withNim(savedName)}, 다음 배틀부터 이름표 교체.`);
+    } catch (error) {
+      setDuelNameError(error instanceof Error ? error.message : '이름을 저장하지 못했어요.');
+    } finally { setDuelNameBusy(false); }
+  }
+
+  async function startFriendDuelInviteNow(outcome: DuelOutcome | null, nickname: string) {
     if (!isDuelConfigured || duelInviteBusy) { if (!isDuelConfigured) showNotice('온라인 대전 서버를 연결 중이에요.'); return; }
     ++duelRequestRef.current;
     clearDuelRealtime();
@@ -526,13 +578,13 @@ function App() {
     setScreen('duelInviteLobby');
     track('duel_invite_create_start', { source: outcome ? 'result' : 'home' });
     try {
-      const created = await (await duelApi()).createDuelInvite(duelNickname);
+      const created = await (await duelApi()).createDuelInvite(nickname);
       setDuelInviteToken(created.token);
       storeBattleInviteToken(created.token);
       setDuelInvite(created.invite);
       setDuelInvitePhase('waiting');
       watchDuelInvite(created.invite);
-      const channel = await shareBattleInvite(created.token, duelNickname, outcome);
+      const channel = await shareBattleInvite(created.token, nickname, outcome);
       showNotice(channel === 'clipboard' ? '배틀 링크를 복사했어요.' : '친구에게 초대장을 보내세요.');
       track('duel_invite_created', { channel, source: outcome ? 'result' : 'home' });
     } catch (error) {
@@ -548,11 +600,11 @@ function App() {
     } finally { setDuelInviteBusy(false); }
   }
 
-  async function acceptFriendDuelInvite() {
+  async function acceptFriendDuelInviteNow(nickname: string) {
     if (!duelInviteToken || duelInviteBusy) return;
     setDuelInviteBusy(true);
     try {
-      const accepted = await (await duelApi()).acceptDuelInvite(duelInviteToken, duelNickname);
+      const accepted = await (await duelApi()).acceptDuelInvite(duelInviteToken, nickname);
       if (accepted.state === 'matched' && accepted.match) {
         track('duel_invite_accepted');
         prepareDuel(accepted.match);
@@ -582,12 +634,12 @@ function App() {
 
   async function switchInviteToRandom() {
     await closeFriendDuelInvite(false);
-    await beginDuel();
+    requestDuelMatch();
   }
 
   async function createInviteFromInviteScreen() {
     await closeFriendDuelInvite(false);
-    await startFriendDuelInvite();
+    requestFriendDuelInvite();
   }
 
   function clearDuelRealtime() {
@@ -634,7 +686,7 @@ function App() {
     track('duel_matched', { kind: match.opponentKind, source: match.matchSource, level: match.level });
   }
 
-  async function beginDuel() {
+  async function beginDuelNow(nickname: string) {
     if (!isDuelConfigured) { showNotice('온라인 대전 서버를 연결 중이에요. 일반 도전은 바로 할 수 있어요.'); return; }
     const request = ++duelRequestRef.current;
     clearDuelRealtime();
@@ -644,7 +696,7 @@ function App() {
     try {
       const deadline = Date.now() + 3000;
       while (request === duelRequestRef.current && Date.now() < deadline) {
-        const joined = await (await duelApi()).findOrJoinDuel(duelNickname);
+        const joined = await (await duelApi()).findOrJoinDuel(nickname);
         if (request !== duelRequestRef.current) return;
         if (joined.state === 'matched') { prepareDuel(joined.match); return; }
         setOnlineCount((count) => Math.max(count, joined.onlineCount));
@@ -653,7 +705,7 @@ function App() {
       }
       if (request !== duelRequestRef.current) return;
       setDuelLobbyPhase('ghost');
-      const ghost = await (await duelApi()).startGhostDuel(duelNickname);
+      const ghost = await (await duelApi()).startGhostDuel(nickname);
       if (request !== duelRequestRef.current) return;
       if (ghost.state === 'matched') prepareDuel(ghost.match);
       else throw new Error('GHOST_MATCH_FAILED');
@@ -1030,16 +1082,18 @@ function App() {
         <div className="home-copy"><span className="kicker">{incomingChallenge ? incomingChallenge.source === 'loss' ? '친구가 복수를 부탁함' : '피할 수 없는 기록 도착' : '잡으면 이기고, 놓치면 놀림받음'}</span><h1>{incomingChallenge ? <>친구 기록이,<br /><em>좀 건방지네?</em></> : <>이 고양이,<br /><em>한 번 잡아볼래?</em></>}</h1><p>{incomingChallenge ? '같은 고양이, 같은 규칙. 이번엔 당신 차례입니다.' : '꾹 누른 채 쫓아가세요. 머리에 닿았을 때 손을 떼면 성공.'}</p></div>
         <div className="home-character-wrap"><div className="speech-bubble">{incomingChallenge ? '남의 기록 깨는 게 제일 재밌지.' : '난 가만히 있을 생각 없는데.'}</div><CatCharacter pose={incomingChallenge ? 'taunt' : 'paddle'} evil={incomingChallenge ? getLevel(incomingChallenge.level).evil : 2} fur={incomingChallenge ? getLevel(incomingChallenge.level).fur : undefined} accent={incomingChallenge ? getLevel(incomingChallenge.level).accent : undefined} /><span className="floor-shadow" /></div>
         <div className="play-rule" aria-label="게임 방법"><span>☝</span><strong>꾹 누르고 쫓다가</strong><em>머리에서 손 떼기</em></div>
-        {incomingChallenge ? <><div className="challenge-card"><div><span>{incomingChallenge.source === 'loss' ? '친구의 복수 요청' : '친구 기록 도착'}</span><strong>Lv.{incomingChallenge.level} {getLevel(incomingChallenge.level).name}</strong><p>{incomingChallenge.elapsedMs ? `친구 기록 ${formatSeconds(incomingChallenge.elapsedMs)} · ${incomingChallenge.attempts}회. 더 빠르게 잡기` : '친구가 놓친 고양이, 대신 잡아주기'}</p></div><button onClick={() => startGame(incomingChallenge.level, 'challenge')}>기록 깨기</button></div><button className="text-button" onClick={() => setIncomingChallenge(null)}>일단 내 게임부터 하기</button></> : <><DuelHomeCard configured={isDuelConfigured} onlineCount={onlineCount} profile={duelProfile} onPlay={() => void beginDuel()} onInvite={() => void startFriendDuelInvite()} onLeague={() => void openDuelLeague()} /><button className="level-select-button" onClick={() => setScreen('levels')}><span>{homeLevelLabel}</span><strong>Lv.{selectedDifficulty.id} {selectedDifficulty.name}</strong><i>10마리 보기 ›</i></button><div className="daily-card"><div><span>{daily.label}</span><strong>Lv.{daily.level.id} {daily.level.name}</strong><p>오늘은 모두 같은 움직임 · 오늘 최고 {dailyBest?.date === daily.date ? `${dailyBest.score.toLocaleString()}점` : '없음'}</p><small>{completedToday ? `${dailyStreak}일 연속 완료` : dailyStreak ? `오늘 잡으면 ${dailyStreak + 1}일 연속` : '오늘부터 연속 도전'} · 이번 주 내 최고 {weeklyBest ? `${weeklyBest.score.toLocaleString()}점` : '없음'}</small></div><button onClick={() => startGame(daily.level.id, 'daily')}>{completedToday ? '기록 단축' : '한 판 하기'}</button></div><button className="primary-button wobble-button" onClick={() => startGame()}>혼자 도전하기 <span>→</span></button><button className="rank-link" onClick={handleLeaderboard}>🏆 토스 전체 랭킹</button><p className="tiny-caption">모든 모드 15초 · 기회 5번 · 머리만 정답</p></>}
+        {incomingChallenge ? <><div className="challenge-card"><div><span>{incomingChallenge.source === 'loss' ? '친구의 복수 요청' : '친구 기록 도착'}</span><strong>Lv.{incomingChallenge.level} {getLevel(incomingChallenge.level).name}</strong><p>{incomingChallenge.elapsedMs ? `친구 기록 ${formatSeconds(incomingChallenge.elapsedMs)} · ${incomingChallenge.attempts}회. 더 빠르게 잡기` : '친구가 놓친 고양이, 대신 잡아주기'}</p></div><button onClick={() => startGame(incomingChallenge.level, 'challenge')}>기록 깨기</button></div><button className="text-button" onClick={() => setIncomingChallenge(null)}>일단 내 게임부터 하기</button></> : <><DuelHomeCard configured={isDuelConfigured} onlineCount={onlineCount} profile={duelProfile} nickname={duelNickname} onPlay={requestDuelMatch} onInvite={() => requestFriendDuelInvite()} onLeague={() => void openDuelLeague()} onEditName={requestBattleNameEdit} /><button className="level-select-button" onClick={() => setScreen('levels')}><span>{homeLevelLabel}</span><strong>Lv.{selectedDifficulty.id} {selectedDifficulty.name}</strong><i>10마리 보기 ›</i></button><div className="daily-card"><div><span>{daily.label}</span><strong>Lv.{daily.level.id} {daily.level.name}</strong><p>오늘은 모두 같은 움직임 · 오늘 최고 {dailyBest?.date === daily.date ? `${dailyBest.score.toLocaleString()}점` : '없음'}</p><small>{completedToday ? `${dailyStreak}일 연속 완료` : dailyStreak ? `오늘 잡으면 ${dailyStreak + 1}일 연속` : '오늘부터 연속 도전'} · 이번 주 내 최고 {weeklyBest ? `${weeklyBest.score.toLocaleString()}점` : '없음'}</small></div><button onClick={() => startGame(daily.level.id, 'daily')}>{completedToday ? '기록 단축' : '한 판 하기'}</button></div><button className="primary-button wobble-button" onClick={() => startGame()}>혼자 도전하기 <span>→</span></button><button className="rank-link" onClick={handleLeaderboard}>🏆 토스 전체 랭킹</button><p className="tiny-caption">모든 모드 15초 · 기회 5번 · 머리만 정답</p></>}
       </section>}
 
       {screen === 'duelLobby' && <DuelLobby nickname={duelNickname} onlineCount={onlineCount} phase={duelLobbyPhase} onCancel={() => void abandonDuel('home')} onPractice={() => { void abandonDuel('home'); startGame(); }} />}
-      {screen === 'duelInvite' && <DuelInviteAccept preview={duelInvitePreview} remainingSeconds={duelInviteRemaining} busy={duelInviteBusy} onAccept={() => void acceptFriendDuelInvite()} onDecline={() => { clearInviteLocal(); setScreen('home'); }} onCreate={() => void createInviteFromInviteScreen()} onRetry={() => void inspectDuelInvite()} />}
+      {screen === 'duelInvite' && <DuelInviteAccept preview={duelInvitePreview} remainingSeconds={duelInviteRemaining} busy={duelInviteBusy} onAccept={requestFriendDuelAccept} onDecline={() => { clearInviteLocal(); setScreen('home'); }} onCreate={() => void createInviteFromInviteScreen()} onRetry={() => void inspectDuelInvite()} />}
       {screen === 'duelInviteLobby' && <DuelInviteLobby invite={duelInvite} phase={duelInvitePhase} remainingSeconds={duelInviteRemaining} nickname={duelNickname} busy={duelInviteBusy} onShare={() => void shareCurrentDuelInvite()} onRandom={() => void switchInviteToRandom()} onCancel={() => void closeFriendDuelInvite()} onCreate={() => void createInviteFromInviteScreen()} />}
       {screen === 'duelReady' && activeDuel && <DuelReady match={activeDuel} nickname={duelNickname} countdown={duelCountdown} />}
       {screen === 'duelBurst' && duelOutcome && <DuelFinishBurst outcome={duelOutcome} onDone={() => setScreen('duelResult')} />}
-      {screen === 'duelResult' && duelOutcome && <DuelResult outcome={duelOutcome} profile={duelProfile} busy={duelInviteBusy} onRematch={() => void beginDuel()} onInvite={() => void startFriendDuelInvite(duelOutcome)} onHome={() => void abandonDuel('home')} />}
-      {screen === 'duelLeague' && <DuelLeague league={duelLeague} profile={duelProfile} status={duelLeagueStatus} onPlay={() => void beginDuel()} onBack={() => setScreen('home')} onRetry={() => void openDuelLeague()} />}
+      {screen === 'duelResult' && duelOutcome && <DuelResult outcome={duelOutcome} profile={duelProfile} nickname={duelNickname} busy={duelInviteBusy} onRematch={requestDuelMatch} onInvite={() => requestFriendDuelInvite(duelOutcome)} onHome={() => void abandonDuel('home')} />}
+      {screen === 'duelLeague' && <DuelLeague league={duelLeague} profile={duelProfile} status={duelLeagueStatus} onPlay={requestDuelMatch} onBack={() => setScreen('home')} onRetry={() => void openDuelLeague()} />}
+
+      {pendingBattleName && <BattleNameSheet initialName={duelNickname} intent={pendingBattleName.intent} opponentName={pendingBattleName.intent === 'accept' ? duelInvitePreview.hostName : undefined} busy={duelNameBusy} serverError={duelNameError} onConfirm={(nickname, source) => void confirmBattleName(nickname, source)} onClose={() => { if (!duelNameBusy) setPendingBattleName(null); }} />}
 
       {screen === 'levels' && <section className="levels-screen page-enter">
         <div className="levels-heading"><span className="kicker">쉬운 척하는 10마리</span><h1>오늘은 누구부터?</h1><p>잡을수록 다음 고양이가 열려요. 회피법은 한 마리당 두 가지.</p></div>

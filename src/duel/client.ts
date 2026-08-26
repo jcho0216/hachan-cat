@@ -237,11 +237,8 @@ export async function leaveDuel() {
   await client.rpc('duel_leave');
 }
 
-export async function getDuelProfile(): Promise<DuelProfile> {
-  await ensureDuelSession();
-  const response = await supabase().rpc('duel_get_profile');
-  if (response.error) throw response.error;
-  const row = response.data as Record<string, unknown> | null;
+function normalizeProfile(value: unknown): DuelProfile {
+  const row = value as Record<string, unknown> | null;
   if (!row) throw new Error('INVALID_DUEL_PROFILE');
   return {
     nickname: typeof row.nickname === 'string' ? row.nickname : '',
@@ -256,6 +253,20 @@ export async function getDuelProfile(): Promise<DuelProfile> {
     friendWins: Math.max(0, Math.round(finiteNumber(row.friendWins))),
     friendLosses: Math.max(0, Math.round(finiteNumber(row.friendLosses))),
   };
+}
+
+export async function setDuelNickname(nickname: string): Promise<DuelProfile> {
+  await ensureDuelSession();
+  const response = await supabase().rpc('duel_set_nickname', { p_nickname: nickname });
+  if (response.error) throw response.error;
+  return normalizeProfile(response.data);
+}
+
+export async function getDuelProfile(): Promise<DuelProfile> {
+  await ensureDuelSession();
+  const response = await supabase().rpc('duel_get_profile');
+  if (response.error) throw response.error;
+  return normalizeProfile(response.data);
 }
 
 export async function getDuelWeeklyLeague(): Promise<DuelLeague> {
