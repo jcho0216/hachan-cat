@@ -40,7 +40,7 @@ import { isDuelConfigured } from './duel/config';
 import { duelNickname as getDuelNickname, isDuelNicknameConfirmed, saveDuelNickname, withNim } from './duel/nickname';
 import { clearBattleInviteToken, parseBattleInviteToken, readStoredBattleInviteToken, shareBattleInvite, storeBattleInviteToken, stripBattleInviteFromUrl } from './duel/invite';
 import { clearStoredDuelSessionId, readStoredDuelSessionId, storeDuelSessionId } from './duel/session';
-import type { DuelInvite, DuelInvitePreview, DuelLeague as DuelLeagueData, DuelMatch, DuelOutcome, DuelProfile, DuelSession } from './duel/types';
+import type { DuelGesture, DuelInvite, DuelInvitePreview, DuelLeague as DuelLeagueData, DuelMatch, DuelOutcome, DuelProfile, DuelSession } from './duel/types';
 
 type Screen = 'home' | 'levels' | 'game' | 'ending' | 'result' | 'loss' | 'collection' | 'duelLobby' | 'duelReady' | 'duelBurst' | 'duelResult' | 'duelLeague' | 'duelInvite' | 'duelInviteLobby' | 'duelPicker' | 'duelSession';
 type Aim = MovementAim & { x: number; y: number; clientX: number; clientY: number; startedAt: number; traveledPx: number };
@@ -75,6 +75,7 @@ const DEV_DUEL_MATCH: DuelMatch = {
   isDraw: false,
 };
 const DEV_DUEL_LOSS_MATCH: DuelMatch = { ...DEV_DUEL_MATCH, winnerId: 'preview-opponent', winnerElapsedMs: 3120, winnerAttempts: 1, winnerAccuracy: 96, didWin: false };
+const DEV_DUEL_GAME_MATCH: DuelMatch = { ...DEV_DUEL_MATCH, level: 6, status: 'ready', startsAt: Date.now() - 1_000, expiresAt: Date.now() + 60_000, winnerId: null, winnerSide: null, winnerElapsedMs: null, winnerAttempts: null, winnerAccuracy: null, didWin: null };
 const DEV_DUEL_PROFILE: DuelProfile = { nickname: '손빠른 냥헌터', matches: 12, wins: 8, losses: 4, currentStreak: 3, bestStreak: 5, fastestWinMs: 3210, ghostWins: 3, friendMatches: 5, friendWins: 3, friendLosses: 2 };
 const DEV_DUEL_LEAGUE: DuelLeagueData = { weekStartsAt: Date.now(), myRank: 4, players: [
   { rank: 1, nickname: '약오른 발바닥', wins: 14, points: 34, fastestWinMs: 2680, isMe: false },
@@ -95,14 +96,14 @@ const readLegacyCaughtLevels = () => {
 };
 
 function App() {
-  const [screen, setScreen] = useState<Screen>(() => DEV_DUEL_PREVIEW === 'lobby' ? 'duelLobby' : DEV_DUEL_PREVIEW === 'ready' ? 'duelReady' : DEV_DUEL_PREVIEW === 'burst' ? 'duelBurst' : DEV_DUEL_PREVIEW === 'result' ? 'duelResult' : DEV_DUEL_PREVIEW === 'session' ? 'duelSession' : DEV_DUEL_PREVIEW === 'picker' ? 'duelPicker' : DEV_DUEL_PREVIEW === 'league' ? 'duelLeague' : DEV_DUEL_PREVIEW === 'invite' ? 'duelInvite' : DEV_DUEL_PREVIEW === 'invite-lobby' ? 'duelInviteLobby' : INITIAL_BATTLE_TOKEN ? 'duelInvite' : 'home');
+  const [screen, setScreen] = useState<Screen>(() => DEV_DUEL_PREVIEW === 'game' ? 'game' : DEV_DUEL_PREVIEW === 'lobby' ? 'duelLobby' : DEV_DUEL_PREVIEW === 'ready' ? 'duelReady' : DEV_DUEL_PREVIEW === 'burst' ? 'duelBurst' : DEV_DUEL_PREVIEW === 'result' ? 'duelResult' : DEV_DUEL_PREVIEW === 'session' ? 'duelSession' : DEV_DUEL_PREVIEW === 'picker' ? 'duelPicker' : DEV_DUEL_PREVIEW === 'league' ? 'duelLeague' : DEV_DUEL_PREVIEW === 'invite' ? 'duelInvite' : DEV_DUEL_PREVIEW === 'invite-lobby' ? 'duelInviteLobby' : INITIAL_BATTLE_TOKEN ? 'duelInvite' : 'home');
   const [attempts, setAttempts] = useState(0);
   const [misses, setMisses] = useState(0);
   const [nearMisses, setNearMisses] = useState(0);
   const [selectedLevel, setSelectedLevel] = useState(() => {
     return resolveInitialSelectedLevel(safeStorageGet(SELECTED_LEVEL_KEY), safeStorageGet(LEGACY_SELECTED_LEVEL_KEY), LEVELS.length);
   });
-  const [activeLevel, setActiveLevel] = useState(selectedLevel);
+  const [activeLevel, setActiveLevel] = useState(DEV_DUEL_PREVIEW === 'game' ? DEV_DUEL_GAME_MATCH.level : selectedLevel);
   const [unlockedLevel, setUnlockedLevel] = useState(() => {
     const saved = safeStorageGet(PROGRESS_KEY);
     if (saved) return sanitizeLevelId(saved, 3, LEVELS.length);
@@ -131,7 +132,7 @@ function App() {
   const [collectionTab, setCollectionTab] = useState<'levels' | 'memes'>('levels');
   const [collection, setCollection] = useState<string[]>(() => { try { return sanitizeRewardIds(JSON.parse(safeStorageGet(COLLECTION_KEY) ?? '[]')); } catch { return []; } });
   const [busy, setBusy] = useState<'save' | 'share' | null>(null);
-  const [mode, setMode] = useState<GameMode>('campaign');
+  const [mode, setMode] = useState<GameMode>(DEV_DUEL_PREVIEW === 'game' ? 'duel' : 'campaign');
   const [phaseBehavior, setPhaseBehavior] = useState<CatBehavior>(() => getLevel(selectedLevel).behavior);
   const [phaseKey, setPhaseKey] = useState(0);
   const [soundEnabled, setSoundEnabled] = useState(() => safeStorageGet(SOUND_KEY) !== 'off');
@@ -155,7 +156,7 @@ function App() {
   const [activeChallenge, setActiveChallenge] = useState<ChallengeTarget | null>(null);
   const [onlineCount, setOnlineCount] = useState(0);
   const [duelLobbyPhase, setDuelLobbyPhase] = useState<'connecting' | 'waiting' | 'longwait' | 'error'>('connecting');
-  const [activeDuel, setActiveDuel] = useState<DuelMatch | null>(() => DEV_DUEL_PREVIEW === 'burst' ? DEV_DUEL_LOSS_MATCH : DEV_DUEL_PREVIEW === 'ready' || DEV_DUEL_PREVIEW === 'result' ? DEV_DUEL_MATCH : null);
+  const [activeDuel, setActiveDuel] = useState<DuelMatch | null>(() => DEV_DUEL_PREVIEW === 'game' ? DEV_DUEL_GAME_MATCH : DEV_DUEL_PREVIEW === 'burst' ? DEV_DUEL_LOSS_MATCH : DEV_DUEL_PREVIEW === 'ready' || DEV_DUEL_PREVIEW === 'result' ? DEV_DUEL_MATCH : null);
   const [duelOutcome, setDuelOutcome] = useState<DuelOutcome | null>(() => DEV_DUEL_PREVIEW === 'burst' ? { match: DEV_DUEL_LOSS_MATCH, localElapsedMs: null, localAttempts: 2, localAccuracy: 0, reason: 'opponent' } : DEV_DUEL_PREVIEW === 'result' ? { match: DEV_DUEL_MATCH, localElapsedMs: 4280, localAttempts: 2, localAccuracy: 91, reason: 'caught' } : DEV_DUEL_PREVIEW === 'session' ? { match: DEV_DUEL_SESSION_MATCH, localElapsedMs: null, localAttempts: 4, localAccuracy: 0, reason: 'opponent' } : null);
   const [duelCountdown, setDuelCountdown] = useState(3);
   const [duelProfile, setDuelProfile] = useState<DuelProfile | null>(() => DEV_DUEL_PREVIEW ? DEV_DUEL_PROFILE : null);
@@ -176,6 +177,7 @@ function App() {
   const [pendingBattleName, setPendingBattleName] = useState<PendingBattleName | null>(null);
   const [duelNameBusy, setDuelNameBusy] = useState(false);
   const [duelNameError, setDuelNameError] = useState('');
+  const [opponentGesture, setOpponentGesture] = useState<(DuelGesture & { key: number }) | null>(() => DEV_DUEL_PREVIEW === 'game' ? { kind: 'release', x: 31, y: 58, key: Date.now() } : null);
   const daily = useMemo(() => getDailyChallenge(), []);
 
   const fieldRef = useRef<HTMLDivElement>(null);
@@ -202,6 +204,11 @@ function App() {
   const toastTimerRef = useRef(0);
   const duelRequestRef = useRef(0);
   const duelUnsubscribeRef = useRef<(() => void) | null>(null);
+  const duelGestureUnsubscribeRef = useRef<(() => void) | null>(null);
+  const duelGestureSendRef = useRef<((gesture: DuelGesture) => void) | null>(null);
+  const duelGestureHideTimerRef = useRef(0);
+  const duelGestureLastMoveRef = useRef(0);
+  const duelGestureLastPointRef = useRef<{ x: number; y: number; at: number } | null>(null);
   const duelSettlementTimerRef = useRef(0);
   const duelInvitePollRef = useRef(0);
   const duelInviteUnsubscribeRef = useRef<(() => void) | null>(null);
@@ -748,7 +755,39 @@ function App() {
   function clearDuelRealtime() {
     duelUnsubscribeRef.current?.();
     duelUnsubscribeRef.current = null;
+    duelGestureUnsubscribeRef.current?.();
+    duelGestureUnsubscribeRef.current = null;
+    duelGestureSendRef.current = null;
+    duelGestureLastPointRef.current = null;
+    duelGestureLastMoveRef.current = 0;
+    window.clearTimeout(duelGestureHideTimerRef.current);
+    setOpponentGesture(null);
     window.clearTimeout(duelSettlementTimerRef.current);
+  }
+
+  function showOpponentGesture(gesture: DuelGesture) {
+    window.clearTimeout(duelGestureHideTimerRef.current);
+    const leadSeconds = gesture.kind === 'move' ? .09 : 0;
+    const x = clamp(gesture.x + (gesture.vx ?? 0) * leadSeconds, 7, 93);
+    const y = clamp(gesture.y + (gesture.vy ?? 0) * leadSeconds, 8, 88);
+    setOpponentGesture({ ...gesture, x, y, key: Date.now() });
+    duelGestureHideTimerRef.current = window.setTimeout(() => setOpponentGesture(null), gesture.kind === 'release' ? 520 : 1_200);
+  }
+
+  function sendDuelGesture(kind: DuelGesture['kind'], point: { fieldX: number; fieldY: number }) {
+    if (mode !== 'duel' || activeDuelRef.current?.status !== 'ready') return;
+    const now = performance.now();
+    if (kind === 'move') {
+      if (now - duelGestureLastMoveRef.current < 125) return;
+      duelGestureLastMoveRef.current = now;
+    }
+    const previous = duelGestureLastPointRef.current;
+    const elapsedSeconds = previous ? Math.max(16, now - previous.at) / 1_000 : 0;
+    const moving = kind === 'move' && previous && elapsedSeconds > 0;
+    const vx = moving ? clamp((point.fieldX - previous.x) / elapsedSeconds, -180, 180) : 0;
+    const vy = moving ? clamp((point.fieldY - previous.y) / elapsedSeconds, -180, 180) : 0;
+    duelGestureSendRef.current?.({ kind, x: point.fieldX, y: point.fieldY, vx, vy });
+    duelGestureLastPointRef.current = kind === 'release' ? null : { x: point.fieldX, y: point.fieldY, at: now };
   }
 
   function finishDuel(match: DuelMatch, reason: DuelOutcome['reason'], localElapsedMs: number | null = null, localAttempts = attemptsRef.current, localAccuracy = 0) {
@@ -776,13 +815,18 @@ function App() {
     setActiveDuel(match);
     setDuelOutcome(null);
     setDuelCountdown(Math.max(0, Math.ceil((match.startsAt - Date.now()) / 1000)));
-    void duelApi().then(({ subscribeToDuel }) => {
+    void duelApi().then(({ subscribeToDuel, connectDuelGestures }) => {
       if (activeDuelRef.current?.id !== match.id || duelResolvedRef.current) return;
       duelUnsubscribeRef.current = subscribeToDuel(match.id, (updated) => {
       activeDuelRef.current = updated;
       setActiveDuel(updated);
       if (updated.status === 'finished' && !duelResolvedRef.current) finishDuel(updated, updated.isDraw ? 'draw' : 'opponent');
       });
+      const gestures = connectDuelGestures(match.id, (gesture) => {
+        if (activeDuelRef.current?.id === match.id && !duelResolvedRef.current) showOpponentGesture(gesture);
+      });
+      duelGestureSendRef.current = gestures.send;
+      duelGestureUnsubscribeRef.current = gestures.unsubscribe;
     });
     setScreen('duelReady');
     playSound('phase', soundEnabled);
@@ -947,6 +991,7 @@ function App() {
     if (!point) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     const nextAim = { ...point, clientX: event.clientX, clientY: event.clientY, startedAt: Date.now(), traveledPx: 0, dx: 0, dy: 0 };
+    sendDuelGesture('start', point);
     reactedToAimRef.current = false; aimRef.current = nextAim; setAim(nextAim); setAttention('watch');
     if (showGameGuide) {
       practiceAttemptRef.current = true;
@@ -964,6 +1009,7 @@ function App() {
     const point = pointInField(event.clientX, event.clientY);
     if (!point) return;
     const nextAim = { ...previous, ...point, clientX: event.clientX, clientY: event.clientY, traveledPx: previous.traveledPx + Math.hypot(point.x - previous.x, point.y - previous.y), dx: point.fieldX - previous.fieldX, dy: point.fieldY - previous.fieldY };
+    sendDuelGesture('move', point);
     aimRef.current = nextAim; setAim(nextAim);
     const head = headRef.current?.getBoundingClientRect();
     if (!head) return;
@@ -984,6 +1030,8 @@ function App() {
   function clearAim() { aimRef.current = null; setAim(null); setAttention('idle'); }
 
   function cancelAim() {
+    const currentAim = aimRef.current;
+    if (currentAim) sendDuelGesture('release', currentAim);
     const wasPractice = practiceAttemptRef.current;
     practiceAttemptRef.current = false;
     clearAim();
@@ -995,6 +1043,8 @@ function App() {
     const currentAim = aimRef.current;
     const head = headRef.current?.getBoundingClientRect();
     if (!currentAim || !head || finishedRef.current) { clearAim(); return; }
+    const releasePoint = pointInField(event.clientX, event.clientY);
+    if (releasePoint) sendDuelGesture('release', releasePoint);
     const isPracticeAttempt = practiceAttemptRef.current;
     practiceAttemptRef.current = false;
     const nextAttempts = attemptsRef.current + 1;
@@ -1219,6 +1269,7 @@ function App() {
             {character(Boolean(result))}
           </div>
           {aim && <div className={`catch-reticle ${attention === 'danger' ? 'is-danger' : ''} ${[difficulty.behavior, difficulty.secondaryBehavior].some((behavior) => ['blink', 'mirror', 'overlord'].includes(behavior)) ? 'is-warped' : ''}`} style={{ left: aim.x, top: aim.y }}><span>{attention === 'danger' ? '지금 떼면 잡는다' : '머리까지 쫓기'}</span></div>}
+          {mode === 'duel' && opponentGesture && <div className={`opponent-gesture is-${opponentGesture.kind}`} style={{ left: `${opponentGesture.x}%`, top: `${opponentGesture.y}%` }} aria-hidden="true"><i key={`opponent-ring-${opponentGesture.key}`} /><span key={`opponent-hand-${opponentGesture.key}`}><svg viewBox="0 0 48 48"><path d="M20 26V10c0-4 6-4 6 0v11-5c0-4 6-4 6 0v7-4c0-4 6-4 6 0v12c0 8-5 13-13 13-5 0-8-2-11-6L8 30c-2-3 2-7 5-4l7 7" /></svg></span><strong>{activeDuel?.opponentName} {opponentGesture.kind === 'release' ? '콕!' : '손'}</strong></div>}
           {dodgeFx && <div key={`dodge-${dodgeFx.key}`} className="dodge-fx" style={{ left: `${dodgeFx.x}%`, top: `${dodgeFx.y}%` }}><i /><i /><strong>{dodgeFx.label}</strong></div>}
           {feedback && <div key={`feedback-${feedback.key}`} className={`catch-feedback ${feedback.near ? 'is-near' : ''}`} role="status" aria-live="polite">{feedback.text}</div>}
           {showGameGuide && <div className="gesture-coach" aria-label="첫 플레이 안내"><span>☝</span><strong>{tutorialRetry ? <>짧게 탭하면 안 잡혀요<br />꾹 누른 채 머리까지 쫓기</> : <>여기부터 꾹 누른 채<br />고양이 머리를 쫓아가세요</>}</strong><small>{tutorialRetry ? '다시 해도 시간·기회 차감 없음' : '첫 실패는 시간·기회 차감 없음'}</small></div>}

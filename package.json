@@ -13,7 +13,8 @@
     "test:social": "node scripts/verify-social-preview.mjs",
     "test:game-loop": "node --experimental-strip-types scripts/verify-game-loop.mjs",
     "test:duel": "node scripts/verify-duel-system.mjs && node --experimental-strip-types scripts/verify-duel-reactions.ts && node --experimental-strip-types scripts/verify-duel-nickname.ts",
-    "test:duel:live": "node scripts/verify-duel-live.mjs"
+    "test:duel:live": "node scripts/verify-duel-live.mjs",
+    "test:duel:gestures": "node --env-file=.env.local scripts/verify-duel-gestures-live.mjs"
   },
   "dependencies": {
     "@apps-in-toss/web-framework": "^2.4.1",

@@ -146,6 +146,19 @@ try {
   assert.equal(hostRoom.session.id, accepted.session.id);
   const acceptedPlayer = friendAccepts[0].state === 'matched' ? friendGuest : friendThird;
   const rejectedPlayer = acceptedPlayer === friendGuest ? friendThird : friendGuest;
+  let receivedGesture = null;
+  const gestureTopic = `duel-gestures-${accepted.match.id}`;
+  const hostGestures = friendHost.api.channel(gestureTopic, { config: { broadcast: { self: false, ack: false } } })
+    .on('broadcast', { event: 'gesture' }, ({ payload }) => { receivedGesture = payload; });
+  const guestGestures = acceptedPlayer.api.channel(gestureTopic, { config: { broadcast: { self: false, ack: false } } });
+  await Promise.all([hostGestures, guestGestures].map((channel) => new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('Gesture Realtime subscription timeout')), 6000);
+    channel.subscribe((status) => { if (status === 'SUBSCRIBED') { clearTimeout(timeout); resolve(); } });
+  })));
+  await guestGestures.send({ type: 'broadcast', event: 'gesture', payload: { kind: 'release', x: 42, y: 61 } });
+  for (let attempt = 0; attempt < 20 && !receivedGesture; attempt += 1) await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.deepEqual(receivedGesture, { kind: 'release', x: 42, y: 61 }, 'opponent gesture must arrive on the shared match channel');
+  await Promise.all([friendHost.api.removeChannel(hostGestures), acceptedPlayer.api.removeChannel(guestGestures)]);
   const recoveredSession = await rpc(acceptedPlayer.api, 'duel_get_active_session');
   assert.equal(recoveredSession.id, accepted.session.id, 'active session must recover even when local session storage is missing');
   const hiddenInvite = await rejectedPlayer.api.from('duel_invites').select('id').eq('id', invitation.invite.id);

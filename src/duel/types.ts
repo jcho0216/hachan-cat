@@ -57,6 +57,14 @@ export type DuelOutcome = {
   reason: 'caught' | 'opponent' | 'time' | 'misses' | 'draw' | 'connection';
 };
 
+export type DuelGesture = {
+  kind: 'start' | 'move' | 'release';
+  x: number;
+  y: number;
+  vx?: number;
+  vy?: number;
+};
+
 export type DuelProfile = {
   nickname: string;
   matches: number;

@@ -79,6 +79,15 @@ assert.match(sessionRoom, /ENDLESS FRIEND BATTLE/, 'persistent friend session id
 assert.match(client, /auth\.getUser\(\)/, 'persisted anonymous session must be verified with the auth server');
 assert.match(client, /auth\.signOut\(\{ scope: 'local' \}\)/, 'revoked anonymous session must be locally discarded');
 assert.match(client, /sessionPromise/, 'concurrent session recovery must be deduplicated');
+assert.match(client, /duel-gestures-\$\{matchId\}/, 'per-match opponent gesture broadcast channel missing');
+assert.match(client, /broadcast: \{ self: false, ack: false \}/, 'gesture broadcast must not echo the local hand');
+assert.match(app, /sendDuelGesture\('start', point\)/, 'duel press start must be broadcast');
+assert.match(app, /sendDuelGesture\('move', point\)/, 'duel hand movement must be broadcast');
+assert.match(app, /opponent-gesture/, 'opponent gesture must be rendered in the game field');
+assert.doesNotMatch(app, /key=\{`opponent-gesture-/, 'gesture container must persist so coordinate interpolation stays continuous');
+assert.match(app, /leadSeconds = gesture\.kind === 'move' \? \.09 : 0/, 'delayed gesture packets need short velocity prediction');
+assert.match(styles, /opponentTapBurst/, 'opponent release needs a visible click burst');
+assert.match(styles, /transition-duration: 155ms/, 'opponent hand must interpolate between throttled network updates');
 assert.match(invite, /\?battle=\$\{encodeURIComponent\(token\)\}/, 'universal friend battle link missing');
 assert.match(invite, /intoss:\/\/hachan-cat\/battle/, 'Apps-in-Toss friend battle deep link missing');
 assert.match(invite, /sessionStorage/, 'active invite token must survive a WebView refresh');

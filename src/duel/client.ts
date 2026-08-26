@@ -1,5 +1,5 @@
 import { createClient, type RealtimeChannel, type SupabaseClient } from '@supabase/supabase-js';
-import type { DuelInvite, DuelInviteCreation, DuelInvitePreview, DuelJoinResult, DuelLeague, DuelLeaguePlayer, DuelMatch, DuelProfile, DuelSession } from './types';
+import type { DuelGesture, DuelInvite, DuelInviteCreation, DuelInvitePreview, DuelJoinResult, DuelLeague, DuelLeaguePlayer, DuelMatch, DuelProfile, DuelSession } from './types';
 import { isDuelConfigured } from './config';
 
 const url = import.meta.env.VITE_SUPABASE_URL?.trim();
@@ -353,6 +353,31 @@ export function subscribeToDuel(matchId: string, onMatch: (match: DuelMatch) => 
     })
     .subscribe();
   return () => { void supabase().removeChannel(channel); };
+}
+
+export function connectDuelGestures(matchId: string, onGesture: (gesture: DuelGesture) => void) {
+  let connected = false;
+  const channel = supabase().channel(`duel-gestures-${matchId}`, { config: { broadcast: { self: false, ack: false } } })
+    .on('broadcast', { event: 'gesture' }, ({ payload }) => {
+      if (!payload || typeof payload !== 'object') return;
+      const row = payload as Record<string, unknown>;
+      const kind = row.kind;
+      const x = finiteNumber(row.x, Number.NaN);
+      const y = finiteNumber(row.y, Number.NaN);
+      const vx = Math.min(180, Math.max(-180, finiteNumber(row.vx)));
+      const vy = Math.min(180, Math.max(-180, finiteNumber(row.vy)));
+      if (!['start', 'move', 'release'].includes(String(kind)) || !Number.isFinite(x) || !Number.isFinite(y)) return;
+      onGesture({ kind: kind as DuelGesture['kind'], x: Math.min(100, Math.max(0, x)), y: Math.min(100, Math.max(0, y)), vx, vy });
+    })
+    .subscribe((status) => { connected = status === 'SUBSCRIBED'; });
+
+  return {
+    send(gesture: DuelGesture) {
+      if (!connected) return;
+      void channel.send({ type: 'broadcast', event: 'gesture', payload: gesture });
+    },
+    unsubscribe() { connected = false; void supabase().removeChannel(channel); },
+  };
 }
 
 export function subscribeToDuelInvite(inviteId: string, onChange: () => void) {
