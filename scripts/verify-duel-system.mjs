@@ -64,6 +64,8 @@ assert.match(finishBurst, /setTimeout\(\(\) => doneRef\.current\(\), 2_200\)/, '
 for (const copy of ['그것밖에 안 되냐?', '거의 잡았네. 거의.', '한 번에 잡았는데, 넌 뭐 함?']) assert.ok(taunts.includes(copy), `contextual taunt missing: ${copy}`);
 for (const mode of ['바로 붙기', '친구 지목전', '시비 걸기']) assert.ok(homeCard.includes(mode), `battle mode hierarchy missing: ${mode}`);
 assert.match(styles, /html, body, #root \{ height: 100%;[^}]+overflow: hidden;/, 'WebView root must not restore a hidden page scroll position');
+assert.match(styles, /\.duel-cat-picker[^}]+(?:\{|;)\s*height: calc\(100dvh - var\(--header-height\)\)[^}]+overflow-y: auto;/, 'friend cat picker must be a viewport-constrained scroll container');
+assert.match(styles, /\.battle-name-backdrop \{[^}]+width: min\(100%,520px\)[^}]+left: 50%[^}]+translate: -50% 0;/, 'battle-name bottom-sheet layer must stay within the app maximum width');
 assert.match(app, /pending\.intent === 'accept'\) await acceptFriendDuelInviteNow\(savedName\)/, 'invite acceptance must resume after first-time name confirmation');
 assert.match(app, /pending\.intent === 'invite'\).*setScreen\('duelPicker'\)/, 'friend invite must resume at cat selection after first-time name confirmation');
 assert.match(nameSheet, /배틀에서 뭐라고 불러\?/, 'battle-name prompt copy missing');
