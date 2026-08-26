@@ -7,6 +7,7 @@ function outcome(overrides: Partial<DuelOutcome['match']> = {}): DuelOutcome {
     match: {
       id: 'reaction-test', level: 6, seed: 260826, startsAt: 0, expiresAt: 15_000,
       status: 'finished', opponentKind: 'live', matchSource: 'invite', opponentName: '뻔뻔한 참치맨',
+      sessionId: 'reaction-session', sessionRound: 2,
       ghostElapsedMs: null, winnerId: 'opponent', winnerSide: null, winnerElapsedMs: 3_120,
       winnerAttempts: 1, winnerAccuracy: 96, isDraw: false, didWin: false, ...overrides,
     },
@@ -24,7 +25,4 @@ const regular = getOpponentCatchReaction(outcome({ id: 'regular-test', winnerEla
 assert.match(regular.detail, /7\.82초 만에 잡음 · 4번 시도/);
 assert.notEqual(regular.taunt, '');
 
-const ghost = getOpponentCatchReaction(outcome({ id: 'ghost-test', opponentKind: 'ghost', matchSource: 'ghost' }));
-assert.equal(ghost.kicker, '과거의 손이 먼저 낚아챔');
-
-console.log('✓ deterministic one-shot, regular, and ghost opponent reactions verified');
+console.log('✓ deterministic one-shot and regular real-opponent reactions verified');

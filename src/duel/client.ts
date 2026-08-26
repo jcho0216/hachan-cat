@@ -1,5 +1,5 @@
 import { createClient, type RealtimeChannel, type SupabaseClient } from '@supabase/supabase-js';
-import type { DuelInvite, DuelInviteCreation, DuelInvitePreview, DuelJoinResult, DuelLeague, DuelLeaguePlayer, DuelMatch, DuelProfile } from './types';
+import type { DuelInvite, DuelInviteCreation, DuelInvitePreview, DuelJoinResult, DuelLeague, DuelLeaguePlayer, DuelMatch, DuelProfile, DuelSession } from './types';
 import { isDuelConfigured } from './config';
 
 const url = import.meta.env.VITE_SUPABASE_URL?.trim();
@@ -31,7 +31,7 @@ function normalizeMatch(value: unknown): DuelMatch {
   const status = row.status;
   const opponentKind = row.opponentKind ?? row.opponent_kind;
   const matchSource = row.matchSource ?? row.match_source ?? (opponentKind === 'ghost' ? 'ghost' : 'random');
-  if (!id || !Number.isInteger(level) || level < 3 || level > 8
+  if (!id || !Number.isInteger(level) || level < 1 || level > 10
     || !['ready', 'finished', 'expired'].includes(String(status))
     || !['live', 'ghost'].includes(String(opponentKind))
     || !['random', 'ghost', 'invite'].includes(String(matchSource))) throw new Error('INVALID_DUEL_MATCH');
@@ -61,6 +61,8 @@ function normalizeMatch(value: unknown): DuelMatch {
     status: normalizedStatus,
     opponentKind: normalizedKind,
     matchSource: matchSource as DuelMatch['matchSource'],
+    sessionId: typeof (row.sessionId ?? row.session_id) === 'string' ? String(row.sessionId ?? row.session_id) : null,
+    sessionRound: nullableNumber(row.sessionRound ?? row.session_round),
     opponentName: typeof (row.opponentName ?? (isPlayerOne ? row.player_two_name : row.player_one_name)) === 'string'
       ? String(row.opponentName ?? (isPlayerOne ? row.player_two_name : row.player_one_name)) : '이름 없는 냥손',
     ghostElapsedMs: nullableNumber(row.ghostElapsedMs ?? row.ghost_elapsed_ms),
@@ -71,6 +73,37 @@ function normalizeMatch(value: unknown): DuelMatch {
     winnerAccuracy: nullableNumber(row.winnerAccuracy ?? row.winner_accuracy),
     isDraw,
     didWin,
+  };
+}
+
+function normalizeSession(value: unknown): DuelSession {
+  if (!value || typeof value !== 'object') throw new Error('INVALID_DUEL_SESSION');
+  const row = value as Record<string, unknown>;
+  const id = typeof row.id === 'string' ? row.id : '';
+  const status = String(row.status);
+  const selectedLevel = finiteNumber(row.selectedLevel ?? row.selected_level);
+  if (!id || !['playing', 'choosing', 'closed'].includes(status) || !Number.isInteger(selectedLevel) || selectedLevel < 1 || selectedLevel > 10) throw new Error('INVALID_DUEL_SESSION');
+  const serverNow = finiteNumber(row.serverNow, Number.NaN);
+  if (Number.isFinite(serverNow)) serverClockOffsetMs = Date.now() - serverNow;
+  const rawDeadline = nullableNumber(row.choiceDeadline ?? row.choice_deadline);
+  return {
+    id,
+    status: status as DuelSession['status'],
+    round: Math.max(1, Math.round(finiteNumber(row.round, 1))),
+    selectedLevel,
+    choiceDeadline: rawDeadline === null ? null : rawDeadline + serverClockOffsetMs,
+    myScore: Math.max(0, Math.round(finiteNumber(row.myScore))),
+    opponentScore: Math.max(0, Math.round(finiteNumber(row.opponentScore))),
+    hostScore: Math.max(0, Math.round(finiteNumber(row.hostScore))),
+    guestScore: Math.max(0, Math.round(finiteNumber(row.guestScore))),
+    chooserIsMe: row.chooserIsMe === true,
+    chooserName: typeof row.chooserName === 'string' ? row.chooserName : '',
+    opponentName: typeof row.opponentName === 'string' ? row.opponentName : '이름 없는 냥손',
+    isHost: row.isHost === true,
+    leftByMe: row.leftByMe === true,
+    opponentLeft: row.opponentLeft === true,
+    lastWinnerIsMe: row.lastWinnerIsMe === true,
+    match: row.match ? normalizeMatch(row.match) : null,
   };
 }
 
@@ -87,10 +120,12 @@ function normalizeInvite(value: unknown): DuelInvite {
     status: status as DuelInvite['status'],
     hostName: typeof row.hostName === 'string' ? row.hostName : '이름 없는 냥손',
     guestName: typeof row.guestName === 'string' ? row.guestName : null,
+    selectedLevel: Math.max(1, Math.min(10, Math.round(finiteNumber(row.selectedLevel, 3)))),
     expiresAt: finiteNumber(row.expiresAt) + serverClockOffsetMs,
     isHost: row.isHost === true,
     isGuest: row.isGuest === true,
     match: row.match ? normalizeMatch(row.match) : null,
+    session: row.session ? normalizeSession(row.session) : null,
   };
 }
 
@@ -106,6 +141,7 @@ function normalizeInvitePreview(value: unknown): DuelInvitePreview {
   return {
     state: invite?.isHost && invite.status === 'waiting' ? 'own' : rawState as DuelInvitePreview['state'],
     hostName: invite?.hostName ?? (typeof row.hostName === 'string' ? row.hostName : '이름 없는 냥손'),
+    selectedLevel: invite?.selectedLevel ?? Math.max(1, Math.min(10, Math.round(finiteNumber(row.selectedLevel, 3)))),
     expiresAt: invite?.expiresAt ?? finiteNumber(row.expiresAt) + serverClockOffsetMs,
     invite,
   };
@@ -151,16 +187,9 @@ export async function findOrJoinDuel(nickname: string) {
   return normalizeJoin(response.data);
 }
 
-export async function startGhostDuel(nickname: string) {
+export async function createDuelInvite(nickname: string, level: number): Promise<DuelInviteCreation> {
   await ensureDuelSession();
-  const response = await supabase().rpc('duel_start_ghost', { p_nickname: nickname });
-  if (response.error) throw response.error;
-  return normalizeJoin(response.data);
-}
-
-export async function createDuelInvite(nickname: string): Promise<DuelInviteCreation> {
-  await ensureDuelSession();
-  const response = await supabase().rpc('duel_create_invite', { p_nickname: nickname });
+  const response = await supabase().rpc('duel_create_invite', { p_nickname: nickname, p_level: Math.round(level) });
   if (response.error) throw response.error;
   const row = response.data as Record<string, unknown> | null;
   if (!row || typeof row.token !== 'string') throw new Error('INVALID_DUEL_INVITE_CREATION');
@@ -180,7 +209,35 @@ export async function acceptDuelInvite(token: string, nickname: string) {
   if (response.error) throw response.error;
   const preview = normalizeInvitePreview(response.data);
   const row = response.data as Record<string, unknown>;
-  return { ...preview, match: row.match ? normalizeMatch(row.match) : preview.invite?.match ?? null };
+  return { ...preview, match: row.match ? normalizeMatch(row.match) : preview.invite?.match ?? null, session: row.session ? normalizeSession(row.session) : preview.invite?.session ?? null };
+}
+
+export async function getDuelSession(sessionId: string) {
+  await ensureDuelSession();
+  const response = await supabase().rpc('duel_get_session', { p_session_id: sessionId });
+  if (response.error) throw response.error;
+  return normalizeSession(response.data);
+}
+
+export async function getActiveDuelSession() {
+  await ensureDuelSession();
+  const response = await supabase().rpc('duel_get_active_session');
+  if (response.error) throw response.error;
+  return response.data ? normalizeSession(response.data) : null;
+}
+
+export async function chooseDuelSessionCat(sessionId: string, level?: number) {
+  await ensureDuelSession();
+  const response = await supabase().rpc('duel_choose_session_cat', { p_session_id: sessionId, p_level: level === undefined ? null : Math.round(level) });
+  if (response.error) throw response.error;
+  return normalizeSession(response.data);
+}
+
+export async function leaveDuelSession(sessionId: string) {
+  await ensureDuelSession();
+  const response = await supabase().rpc('duel_leave_session', { p_session_id: sessionId });
+  if (response.error) throw response.error;
+  return normalizeSession(response.data);
 }
 
 export async function getDuelInvite(inviteId: string) {
@@ -204,12 +261,6 @@ export async function claimDuel(matchId: string, elapsedMs: number, attempts: nu
     p_attempts: Math.round(attempts),
     p_accuracy: Math.round(accuracy),
   });
-  if (response.error) throw response.error;
-  return normalizeMatch(response.data);
-}
-
-export async function finishGhostDuel(matchId: string) {
-  const response = await supabase().rpc('duel_finish_ghost', { p_match_id: matchId });
   if (response.error) throw response.error;
   return normalizeMatch(response.data);
 }
@@ -307,6 +358,13 @@ export function subscribeToDuel(matchId: string, onMatch: (match: DuelMatch) => 
 export function subscribeToDuelInvite(inviteId: string, onChange: () => void) {
   const channel = supabase().channel(`duel-invite-${inviteId}`)
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'duel_invites', filter: `id=eq.${inviteId}` }, onChange)
+    .subscribe();
+  return () => { void supabase().removeChannel(channel); };
+}
+
+export function subscribeToDuelSession(sessionId: string, onChange: () => void) {
+  const channel = supabase().channel(`duel-session-${sessionId}`)
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'duel_sessions', filter: `id=eq.${sessionId}` }, onChange)
     .subscribe();
   return () => { void supabase().removeChannel(channel); };
 }

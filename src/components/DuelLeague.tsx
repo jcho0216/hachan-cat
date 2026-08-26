@@ -13,7 +13,7 @@ const time = (value: number | null) => value ? `${(value / 1000).toFixed(2)}초`
 
 export function DuelLeague({ league, profile, status, onPlay, onBack, onRetry }: Props) {
   return <section className="duel-league-screen page-enter">
-    <div className="duel-league-heading"><span className="kicker">월요일 0시 새 출발</span><h1>주간 냥손 리그</h1><p>실시간 승 3점 · 고스트 승 1점. 동점이면 최속승.</p></div>
+    <div className="duel-league-heading"><span className="kicker">월요일 0시 새 출발</span><h1>주간 냥손 리그</h1><p>진짜 상대 승리만 3점. 동점이면 최속승.</p></div>
     <div className="duel-profile-strip">
       <div><small>내 전적</small><strong>{profile?.matches ? `${profile.wins}승 ${profile.losses}패` : '첫 승부 대기'}</strong></div>
       <div><small>현재 / 최고 연승</small><strong>{profile ? `${profile.currentStreak} / ${profile.bestStreak}` : '— / —'}</strong></div>

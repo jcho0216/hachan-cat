@@ -1,6 +1,7 @@
 import { shareWithFallback } from '../share';
 import type { DuelOutcome } from './types';
 import { withNim } from './nickname';
+import { getLevel } from '../levels';
 
 const APP_URL = 'https://hachan-cat.vercel.app/';
 const ACTIVE_INVITE_KEY = 'hachan-cat-active-invite-v1';
@@ -65,19 +66,20 @@ export function createBattleInviteDeepLink(token: string) {
   return `intoss://hachan-cat/battle?battle=${encodeURIComponent(token)}`;
 }
 
-function invitationMessage(hostName: string, outcome: DuelOutcome | null) {
+function invitationMessage(hostName: string, outcome: DuelOutcome | null, levelId: number) {
   const displayName = withNim(hostName);
-  if (!outcome) return `${displayName}이 냥탈전을 걸었음 😼\n도망갈 시간 2분 줌. 링크 열고 직접 붙자.`;
-  if (outcome.match.isDraw) return `${displayName}, 무승부는 못 참겠대 😾\n이번엔 둘 중 한 명은 꼭 고양이 잡기. 2분 안에 들어와.`;
-  if (outcome.match.didWin) return `${displayName}, 이기고 바로 시비 거는 중 😼\n말로 말고 같은 고양이로 붙자. 2분 안에 입장.`;
-  return `${displayName}, 방금 패배가 억울해서 복수전 엶 😿\n2분 안에 들어와. 이번엔 진짜 동시 시작.`;
+  const level = getLevel(levelId);
+  if (!outcome) return `${displayName}이 ${level.name}으로 시비 걸었음 😼\n한 판만? 아니, 한쪽이 나갈 때까지. 2분 안에 들어와.`;
+  if (outcome.match.isDraw) return `${displayName}, 무승부는 못 참겠대 😾\n${level.name}부터 다시, 나갈 때까지 계속 붙자.`;
+  if (outcome.match.didWin) return `${displayName}, 이기고 ${level.name}까지 골라둠 😼\n말로 말고 들어와서 계속 붙자.`;
+  return `${displayName}, 패배가 억울해서 ${level.name}으로 복수전 엶 😿\n이번엔 한 판으로 안 끝냄.`;
 }
 
-export async function shareBattleInvite(token: string, hostName: string, outcome: DuelOutcome | null = null) {
+export async function shareBattleInvite(token: string, hostName: string, outcome: DuelOutcome | null = null, levelId = 3) {
   const webUrl = createBattleInviteWebUrl(token);
   return shareWithFallback(
     '하찮냥 친구 냥탈전',
-    invitationMessage(hostName, outcome),
+    invitationMessage(hostName, outcome, levelId),
     webUrl,
     createBattleInviteDeepLink(token),
   );

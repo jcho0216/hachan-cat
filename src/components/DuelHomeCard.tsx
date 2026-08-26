@@ -21,15 +21,15 @@ export function DuelHomeCard({ configured, onlineCount, profile, nickname, onPla
     </header>
     <div className="duel-mode-grid">
       <button className="duel-mode-card is-random" onClick={onPlay} disabled={!configured}>
-        <span>⚡ 3초 매칭</span>
+        <span>⚡ 실시간 매칭</span>
         <strong>바로 붙기</strong>
-        <small>접속한 상대 · 없으면 고스트</small>
+        <small>지금 접속한 진짜 상대만</small>
         <em>지금 대결 <b>→</b></em>
       </button>
       <button className="duel-mode-card is-friend" onClick={onInvite} disabled={!configured}>
-        <span>1:1 · 링크 초대</span>
+        <span>1:1 · 끝장 세션</span>
         <strong>친구 지목전</strong>
-        <small>같은 고양이 · 정확히 동시 시작</small>
+        <small>패자가 다음 냥이 · 나갈 때까지</small>
         <em>시비 걸기 <b>↗</b></em>
       </button>
     </div>
