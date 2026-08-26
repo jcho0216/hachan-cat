@@ -66,6 +66,8 @@ for (const mode of ['바로 붙기', '친구 지목전', '시비 걸기']) asser
 assert.match(styles, /html, body, #root \{ height: 100%;[^}]+overflow: hidden;/, 'WebView root must not restore a hidden page scroll position');
 assert.match(styles, /\.duel-cat-picker[^}]+(?:\{|;)\s*height: calc\(100dvh - var\(--header-height\)\)[^}]+overflow-y: auto;/, 'friend cat picker must be a viewport-constrained scroll container');
 assert.match(styles, /\.battle-name-backdrop \{[^}]+width: min\(100%,520px\)[^}]+left: 50%[^}]+translate: -50% 0;/, 'battle-name bottom-sheet layer must stay within the app maximum width');
+assert.match(styles, /\.battle-name-backdrop \{[^}]+padding-inline: calc\(12px \+ var\(--ait-safe-left\)\) calc\(12px \+ var\(--ait-safe-right\)\);/, 'battle-name bottom sheet must preserve horizontal viewport gutters');
+assert.match(styles, /\.battle-name-sheet \{[^}]+width: 100%;[^}]+max-width: 496px;/, 'battle-name panel must fit inside the app shell gutters');
 assert.match(app, /pending\.intent === 'accept'\) await acceptFriendDuelInviteNow\(savedName\)/, 'invite acceptance must resume after first-time name confirmation');
 assert.match(app, /pending\.intent === 'invite'\).*setScreen\('duelPicker'\)/, 'friend invite must resume at cat selection after first-time name confirmation');
 assert.match(nameSheet, /배틀에서 뭐라고 불러\?/, 'battle-name prompt copy missing');
