@@ -29,12 +29,12 @@ export function DuelResult({ outcome, profile, nickname, busy, onRematch, onInvi
     : won ? `${myName} 승리!`
     : outcome.reason === 'opponent' ? `${opponentName} 승리`
       : outcome.reason === 'connection' ? '연결이 먼저 도망감'
-        : outcome.reason === 'misses' ? '기회를 먼저 다 씀' : '15초를 먼저 다 씀';
+        : '승부 판정이 끊겼음';
 
   return <section className={`duel-result-screen page-enter ${draw ? 'is-draw' : won ? 'is-win' : 'is-loss'}`}>
     <span className="duel-result-stamp">{draw ? 'CAT WINS' : won ? 'FIRST HAND' : 'TOO LATE'}</span>
     <h1>{draw ? '둘 다 놓침.' : won ? '냥탈 성공.' : '냥탈 실패.'}<br /><em>{headline}</em></h1>
-    <p>{match.matchSource === 'invite' ? '친구 끝장 세션' : '실시간 상대'} · {match.opponentName}</p>
+    <p>{match.matchSource === 'invite' ? '친구 5승 선착순' : '실시간 상대'} · {match.opponentName}</p>
     <div className="duel-result-card">
       <CatCharacter caught={won} pose={won ? 'panic' : 'taunt'} fur={level.fur} accent={level.accent} evil={level.evil} />
       <blockquote>{draw ? '“둘이 합쳐도 나 하나를 못 잡네.”' : won ? '“사람끼리 싸우더니 결국 날 잡네.”' : opponentReaction ? <>“{opponentReaction.taunt}”<small>— 상대 손 자동번역</small></> : '“둘 다 나보다 느린 건 똑같아.”'}</blockquote>

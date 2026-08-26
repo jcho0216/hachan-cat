@@ -5,6 +5,7 @@ const migrationDirectory = new URL('../supabase/migrations/', import.meta.url);
 const migration = readdirSync(migrationDirectory).filter((name) => name.endsWith('.sql')).sort()
   .map((name) => readFileSync(new URL(name, migrationDirectory), 'utf8')).join('\n');
 const firstCatchMigration = readFileSync(new URL('20260826080000_make_live_duels_first_catch_only.sql', migrationDirectory), 'utf8');
+const firstToFiveMigration = readFileSync(new URL('20260826090000_make_friend_duels_first_to_five.sql', migrationDirectory), 'utf8');
 const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
 const client = readFileSync(new URL('../src/duel/client.ts', import.meta.url), 'utf8');
 const invite = readFileSync(new URL('../src/duel/invite.ts', import.meta.url), 'utf8');
@@ -12,6 +13,9 @@ const taunts = readFileSync(new URL('../src/duel/taunts.ts', import.meta.url), '
 const homeCard = readFileSync(new URL('../src/components/DuelHomeCard.tsx', import.meta.url), 'utf8');
 const finishBurst = readFileSync(new URL('../src/components/DuelFinishBurst.tsx', import.meta.url), 'utf8');
 const duelReady = readFileSync(new URL('../src/components/DuelReady.tsx', import.meta.url), 'utf8');
+const inviteAccept = readFileSync(new URL('../src/components/DuelInviteAccept.tsx', import.meta.url), 'utf8');
+const inviteLobby = readFileSync(new URL('../src/components/DuelInviteLobby.tsx', import.meta.url), 'utf8');
+const duelResult = readFileSync(new URL('../src/components/DuelResult.tsx', import.meta.url), 'utf8');
 const nameSheet = readFileSync(new URL('../src/components/BattleNameSheet.tsx', import.meta.url), 'utf8');
 const catPicker = readFileSync(new URL('../src/components/DuelCatPicker.tsx', import.meta.url), 'utf8');
 const sessionRoom = readFileSync(new URL('../src/components/DuelSessionRoom.tsx', import.meta.url), 'utf8');
@@ -34,6 +38,10 @@ assert.match(firstCatchMigration, /p_elapsed_ms < 450[^;]+p_attempts < 1/s, 'ser
 assert.doesNotMatch(firstCatchMigration, /p_elapsed_ms not between 450 and 15000|p_attempts not between 1 and 5/, 'live catch validation must not retain the old upper limits');
 assert.match(firstCatchMigration, /older client cannot turn a[\s\S]+create or replace function public\.duel_mark_failure[\s\S]+create or replace function public\.duel_settle_failure/, 'legacy multiplayer failure calls must be harmless');
 assert.match(firstCatchMigration, /create trigger duel_matches_keep_live_match_open[\s\S]+starts_at \+ interval '24 hours'/, 'live matches must not retain the old 15-second expiry window');
+assert.match(firstToFiveMigration, /FIRST_TO_FIVE/, 'friend series target migration missing');
+assert.match(firstToFiveMigration, /next_host_score >= 5 or next_guest_score >= 5/, 'friend series must close when either player reaches five wins');
+assert.match(firstToFiveMigration, /status = 'closed'[\s\S]+host_score = next_host_score[\s\S]+guest_score = next_guest_score[\s\S]+left_by = null/, 'five-win closure must atomically preserve the final score and distinguish a completed series from a forfeit');
+assert.match(firstToFiveMigration, /status = 'choosing'[\s\S]+choice_deadline = now\(\) \+ interval '15 seconds'/, 'sub-five rounds must still let the loser choose the next cat');
 assert.match(migration, /'serverNow'/, 'server clock synchronization missing');
 assert.match(migration, /revoke execute on function public\.duel_record_profile[^;]+authenticated/, 'internal profile updater must not be client-callable');
 assert.match(migration, /alter publication supabase_realtime add table public\.duel_matches/, 'match realtime publication missing');
@@ -70,7 +78,7 @@ assert.match(app, /reason === 'opponent' \? 'duelBurst' : sessionRound \? 'duelS
 assert.match(finishBurst, /상대 손 번역기/, 'opponent catch reaction must clearly identify generated taunt copy');
 assert.match(finishBurst, /setTimeout\(\(\) => doneRef\.current\(\), 2_200\)/, 'reaction beat must automatically continue to results');
 for (const copy of ['그것밖에 안 되냐?', '거의 잡았네. 거의.', '한 번에 잡았는데, 넌 뭐 함?']) assert.ok(taunts.includes(copy), `contextual taunt missing: ${copy}`);
-for (const mode of ['바로 붙기', '친구 지목전', '시비 걸기']) assert.ok(homeCard.includes(mode), `battle mode hierarchy missing: ${mode}`);
+for (const mode of ['바로 붙기', '친구 지목전', '5승 선착순', '시비 걸기']) assert.ok(homeCard.includes(mode), `battle mode hierarchy missing: ${mode}`);
 assert.match(styles, /html, body, #root \{ height: 100%;[^}]+overflow: hidden;/, 'WebView root must not restore a hidden page scroll position');
 assert.match(styles, /\.duel-cat-picker[^}]+(?:\{|;)\s*height: calc\(100dvh - var\(--header-height\)\)[^}]+overflow-y: auto;/, 'friend cat picker must be a viewport-constrained scroll container');
 assert.match(styles, /\.battle-name-backdrop \{[^}]+width: min\(100%,520px\)[^}]+left: 50%[^}]+translate: -50% 0;/, 'battle-name bottom-sheet layer must stay within the app maximum width');
@@ -86,6 +94,14 @@ assert.match(app, /pending\.intent === 'invite'\).*setScreen\('duelPicker'\)/, '
 assert.match(nameSheet, /배틀에서 뭐라고 불러\?/, 'battle-name prompt copy missing');
 assert.match(nameSheet, /하찮게 다시/, 'one-tap random name fallback missing');
 assert.match(duelReady, /시간·기회 무제한/, 'duel ready screen must explain unlimited time and attempts');
+for (const source of [homeCard, duelReady, inviteAccept, inviteLobby, sessionRoom]) {
+  assert.doesNotMatch(source, /나갈 때까지|끝장 세션|15초 안에/, 'friend-duel views must not imply an endless series or a 15-second round ending');
+}
+for (const source of [homeCard, duelReady, inviteAccept, inviteLobby, sessionRoom]) {
+  assert.match(source, /5승/, 'every friend-duel stage must explain the first-to-five finish');
+}
+assert.doesNotMatch(duelResult, /기회를 먼저 다 씀|15초를 먼저 다 씀|친구 끝장 세션/, 'duel result must not expose obsolete five-attempt or 15-second loss copy');
+assert.match(app, /한 판 무제한 · 먼저 잡으면 1승 · 먼저 5승하면 끝/, 'live friend round HUD must explain unlimited first-catch rounds and the five-win target');
 assert.match(nickname, /CONFIRMED_KEY/, 'legacy generated names must remain distinguishable from confirmed player names');
 for (const rpc of ['duel_find_or_join', 'duel_claim', 'duel_forfeit', 'duel_mark_failure', 'duel_settle_failure', 'duel_get_profile', 'duel_set_nickname', 'duel_weekly_league', 'duel_create_invite', 'duel_preview_invite', 'duel_accept_invite', 'duel_get_invite', 'duel_cancel_invite', 'duel_get_session', 'duel_get_active_session', 'duel_choose_session_cat', 'duel_leave_session']) {
   assert.ok(client.includes(`'${rpc}'`), `${rpc} client binding missing`);
@@ -93,7 +109,9 @@ for (const rpc of ['duel_find_or_join', 'duel_claim', 'duel_forfeit', 'duel_mark
 assert.doesNotMatch(app, /startGhostDuel|finishGhostDuel/, 'player flow must never create or race a ghost');
 assert.match(catPicker, /LEVELS\.map/, 'first-round picker must expose all ten cats');
 assert.match(sessionRoom, /패자가|졌으니|복수할 냥이/, 'session loser-choice copy missing');
-assert.match(sessionRoom, /ENDLESS FRIEND BATTLE/, 'persistent friend session identity missing');
+assert.match(sessionRoom, /FIRST TO 5 · FRIEND BATTLE/, 'first-to-five friend session identity missing');
+assert.match(sessionRoom, /opponentName\}을 이김/, 'series winner card must name the defeated opponent');
+assert.match(sessionRoom, /session\.myScore >= targetScore/, 'winner card must only be awarded to the player who reaches five wins');
 assert.match(client, /auth\.getUser\(\)/, 'persisted anonymous session must be verified with the auth server');
 assert.match(client, /auth\.signOut\(\{ scope: 'local' \}\)/, 'revoked anonymous session must be locally discarded');
 assert.match(client, /sessionPromise/, 'concurrent session recovery must be deduplicated');
@@ -116,4 +134,4 @@ assert.match(spec, /링크를 연 상대에게 방장 이름과 `도전 받기`/
 assert.match(spec, /주간 리그와 랭크 연승에서 제외/, 'friend battle ranking integrity rule missing');
 assert.match(spec, /패자가 다음 고양이를 선택/, 'persistent session loser-choice rule missing');
 
-console.log('✓ first-catch-only multiplayer, equal playfield, contained name sheet, matchmaking, sessions, atomic score, league, RLS, and privacy contracts verified');
+console.log('✓ unlimited first-catch rounds, first-to-five friend series, winner card, equal playfield, contained name sheet, matchmaking, atomic score, league, RLS, and privacy contracts verified');

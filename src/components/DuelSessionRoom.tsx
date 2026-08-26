@@ -14,12 +14,16 @@ type Props = {
 };
 
 export function DuelSessionRoom({ session, outcome, nickname, busy, onChoose, onLeave }: Props) {
+  const targetScore = 5;
   const [remaining, setRemaining] = useState(0);
   const previous = getLevel(session.selectedLevel);
   const myName = withNim(nickname);
   const opponentName = withNim(session.opponentName);
   const draw = outcome?.match.isDraw === true;
   const won = outcome?.match.didWin === true;
+  const seriesFinished = session.status === 'closed' && !session.leftByMe && !session.opponentLeft
+    && Math.max(session.myScore, session.opponentScore) >= targetScore;
+  const seriesWon = seriesFinished && session.myScore >= targetScore;
 
   useEffect(() => {
     if (!session.choiceDeadline) { setRemaining(0); return; }
@@ -30,24 +34,39 @@ export function DuelSessionRoom({ session, outcome, nickname, busy, onChoose, on
   }, [session.choiceDeadline]);
 
   const headline = session.status === 'closed'
-    ? session.opponentLeft ? `${opponentName}이 먼저 튐.` : '오늘 시비는 여기까지.'
+    ? seriesFinished
+      ? seriesWon ? `${myName}, 5승 먼저.` : `${opponentName}, 5승 먼저.`
+      : session.opponentLeft ? `${opponentName}이 먼저 튐.` : '오늘 시비는 여기까지.'
     : session.chooserIsMe
       ? draw ? '둘 다 놓침. 네가 골라.' : `${myName}, 졌으니 골라.`
       : `${opponentName}이 복수 준비 중.`;
   const detail = session.status === 'closed'
-    ? '점수는 남았고, 앙금도 적당히 남았습니다.'
+    ? seriesFinished
+      ? seriesWon ? `${opponentName}을 이긴 승리카드가 나왔습니다.` : `${opponentName}이 먼저 다섯 판을 가져갔습니다.`
+      : '점수는 남았고, 앙금도 적당히 남았습니다.'
     : session.chooserIsMe
-      ? `15초 안에 안 고르면 ${previous.name}이 한 번 더 나옵니다.`
+      ? `선택이 늦으면 ${previous.name}이 한 번 더 나옵니다.`
       : `${withNim(session.chooserName || session.opponentName)}이 다음 고양이를 고르는 중…`;
 
   return <section className={`duel-session-room page-enter ${session.chooserIsMe ? 'is-chooser' : ''}`}>
-    <span className="duel-invite-ticket">ENDLESS FRIEND BATTLE</span>
-    <div className="duel-session-score" aria-label="세션 점수">
+    <span className="duel-invite-ticket">FIRST TO 5 · FRIEND BATTLE</span>
+    <div className="duel-session-score" aria-label="5승 선착순 세션 점수">
       <div><small>{myName}</small><strong>{session.myScore}</strong></div><b>:</b><div><small>{opponentName}</small><strong>{session.opponentScore}</strong></div>
     </div>
     <span className="duel-session-round">ROUND {Math.max(1, session.round - (session.status === 'choosing' || session.status === 'closed' ? 1 : 0))}</span>
     <h1>{headline}</h1>
     <p>{detail}</p>
+
+    {seriesWon && <article className="duel-result-card">
+      <CatCharacter caught pose="panic" fur={previous.fur} accent={previous.accent} evil={previous.evil} />
+      <blockquote>“{myName}, {opponentName}을 이김.”<small>5승 선착순 · 친구 냥탈전</small></blockquote>
+      <div><span>최종 승자<strong>{myName}</strong></span><span>최종 점수<strong>{session.myScore} : {session.opponentScore}</strong></span></div>
+    </article>}
+
+    {seriesFinished && !seriesWon && <div className="duel-session-last is-loss">
+      <CatCharacter pose="taunt" fur={previous.fur} accent={previous.accent} evil={previous.evil} />
+      <div><small>5승 선착순 종료</small><strong>{opponentName} 승리</strong><span>최종 점수 {session.myScore} : {session.opponentScore}</span></div>
+    </div>}
 
     {outcome && session.status !== 'closed' && <div className={`duel-session-last ${draw ? 'is-draw' : won ? 'is-win' : 'is-loss'}`}>
       <CatCharacter caught={won} pose={won ? 'panic' : 'taunt'} fur={previous.fur} accent={previous.accent} evil={previous.evil} />
@@ -71,7 +90,7 @@ export function DuelSessionRoom({ session, outcome, nickname, busy, onChoose, on
 
     {session.status === 'playing' && <div className="duel-session-wait"><CatCharacter pose="peek" fur={previous.fur} accent={previous.accent} evil={previous.evil} /><span>!</span><strong>다음 판 만드는 중</strong></div>}
 
-    {session.status === 'closed' ? <button className="primary-button" onClick={onLeave}>이 점수로 끝내기 <span>→</span></button>
+    {session.status === 'closed' ? <button className="primary-button" onClick={onLeave}>{seriesWon ? '승리카드 챙기고 홈으로' : '결과 확인하고 홈으로'} <span>→</span></button>
       : <button className="text-button duel-session-leave" onClick={onLeave} disabled={busy}>여기까지만 하고 나가기</button>}
   </section>;
 }

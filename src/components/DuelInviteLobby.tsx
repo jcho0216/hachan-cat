@@ -23,15 +23,15 @@ export function DuelInviteLobby({ invite, phase, remainingSeconds, nickname, bus
     : waiting ? `${withNim(hostName)}, 기다리는 중`
       : phase === 'expired' ? '친구가 고양이보다 느림' : '초대장이 잠깐 삐끗함';
   const detail = phase === 'creating' ? '한 명만 들어올 수 있는 방을 만들고 있어요.'
-    : waiting ? `${level.name}으로 시작. 이후에는 진 사람이 다음 냥이를 고릅니다.`
+    : waiting ? `${level.name}으로 시작. 한 판은 잡힐 때까지, 먼저 5승하면 끝납니다.`
       : phase === 'expired' ? '이 방은 닫혔어요. 전적에는 아무 일도 없던 걸로.' : '랜덤 대전과 혼자 놀기는 그대로 가능합니다.';
   return <section className="duel-invite-lobby page-enter">
-    <span className="duel-invite-ticket">친구 지목전 · 끝장 세션</span>
+    <span className="duel-invite-ticket">친구 지목전 · 5승 선착순</span>
     <h1>{title}</h1>
     <p>{detail}</p>
     <div className="duel-invite-wait-cat"><CatCharacter pose={waiting ? level.poses[0] : phase === 'creating' ? 'peek' : 'butt'} fur={waiting ? level.fur : undefined} accent={waiting ? level.accent : undefined} evil={waiting ? level.evil : 2} /><span>{waiting ? `Lv.${level.id}` : '...'}</span></div>
     <div className="duel-you"><small>방장 이름</small><strong>{withNim(hostName)}</strong></div>
-    {waiting && <div className="duel-invite-steps" aria-label="친구 배틀 시작 순서"><span className="is-done"><b>1</b>{level.name} 선택</span><i /><span><b>2</b>친구 수락</span><i /><span><b>3</b>계속 대결</span></div>}
+    {waiting && <div className="duel-invite-steps" aria-label="친구 배틀 시작 순서"><span className="is-done"><b>1</b>{level.name} 선택</span><i /><span><b>2</b>한 판 선착순</span><i /><span><b>3</b>먼저 5승</span></div>}
     {waiting && <div className="duel-invite-clock"><span>방 닫히기까지</span><strong>{Math.floor(remainingSeconds / 60)}:{String(remainingSeconds % 60).padStart(2, '0')}</strong><small>먼저 수락한 친구 한 명만 입장</small></div>}
     {phase === 'creating' ? <div className="duel-dots" aria-label="초대방 생성 중"><i /><i /><i /></div>
       : waiting ? <div className="duel-invite-actions"><button className="primary-button" onClick={onShare} disabled={busy}>{busy ? '공유창 여는 중…' : '친구 골라서 시비 걸기'} <span>↗</span></button><small className="duel-share-hint">카톡·문자 어디든 링크 하나면 입장</small><button className="secondary-button" onClick={onRandom} disabled={busy}>기다리기 싫으면 바로 매칭</button><button className="text-button" onClick={onCancel}>방 닫고 홈으로</button></div>
