@@ -51,6 +51,9 @@ try {
   assert.equal(firstMatched.match.id, second.match.id);
   assert.equal(firstMatched.match.seed, second.match.seed);
   assert.equal(firstMatched.match.startsAt, second.match.startsAt);
+  assert.ok(second.match.sessionId, 'random matching must create a persistent session');
+  assert.equal(second.match.matchSource, 'random');
+  assert.equal(second.match.sessionRound, 1);
 
   let realtimeFinished = false;
   const realtime = two.api.channel(`qa-${second.match.id}`)
@@ -72,6 +75,27 @@ try {
   assert.equal(realtimeFinished, true, 'finished match must arrive over Realtime');
   await two.api.removeChannel(realtime);
 
+  const randomWinner = oneClaim.didWin ? one : two;
+  const randomLoser = oneClaim.didWin ? two : one;
+  const winnerAfterRoundOne = await rpc(randomWinner.api, 'duel_get_session', { p_session_id: second.match.sessionId });
+  const loserAfterRoundOne = await rpc(randomLoser.api, 'duel_get_session', { p_session_id: second.match.sessionId });
+  assert.deepEqual(
+    [winnerAfterRoundOne.source, winnerAfterRoundOne.status, winnerAfterRoundOne.myScore, winnerAfterRoundOne.opponentScore, winnerAfterRoundOne.chooserIsMe],
+    ['random', 'choosing', 1, 0, false],
+    'a real-time round win must advance a first-to-five session',
+  );
+  assert.deepEqual(
+    [loserAfterRoundOne.source, loserAfterRoundOne.myScore, loserAfterRoundOne.opponentScore, loserAfterRoundOne.chooserIsMe],
+    ['random', 0, 1, true],
+    'the real-time round loser must choose the next cat',
+  );
+  const blockedLoserTaunt = await randomLoser.api.rpc('duel_send_session_taunt', { p_session_id: second.match.sessionId, p_taunt_id: 2 });
+  assert.ok(blockedLoserTaunt.error, 'the round loser must not be able to send a waiting taunt');
+  const sentTaunt = await rpc(randomWinner.api, 'duel_send_session_taunt', { p_session_id: second.match.sessionId, p_taunt_id: 2 });
+  assert.deepEqual([sentTaunt.lastTauntId, sentTaunt.lastTauntIsMine], [2, true]);
+  const receivedTaunt = await rpc(randomLoser.api, 'duel_get_session', { p_session_id: second.match.sessionId });
+  assert.deepEqual([receivedTaunt.lastTauntId, receivedTaunt.lastTauntIsMine], [2, false], 'the loser must receive the persisted predefined taunt');
+
   const oneProfile = await rpc(one.api, 'duel_get_profile');
   const twoProfile = await rpc(two.api, 'duel_get_profile');
   assert.equal(oneProfile.matches, 1);
@@ -81,19 +105,35 @@ try {
   const oneVisibleProfiles = await one.api.from('duel_profiles').select('user_id');
   assert.ifError(oneVisibleProfiles.error);
   assert.deepEqual(oneVisibleProfiles.data.map((profile) => profile.user_id), [one.id], 'RLS must expose only the caller profile');
-  const winner = oneClaim.didWin ? one : two;
   const renamedWinner = `승자${Date.now().toString(36).slice(-4)}`;
-  const renamedProfile = await rpc(winner.api, 'duel_set_nickname', { p_nickname: renamedWinner });
+  const renamedProfile = await rpc(randomWinner.api, 'duel_set_nickname', { p_nickname: renamedWinner });
   assert.equal(renamedProfile.nickname, renamedWinner, 'nickname RPC must update the current profile immediately');
-  const reservedName = await winner.api.rpc('duel_set_nickname', { p_nickname: '관리자' });
+  const reservedName = await randomWinner.api.rpc('duel_set_nickname', { p_nickname: '관리자' });
   assert.ok(reservedName.error, 'reserved nickname must be rejected by the server');
-  const shortName = await winner.api.rpc('duel_set_nickname', { p_nickname: '냥' });
+  const shortName = await randomWinner.api.rpc('duel_set_nickname', { p_nickname: '냥' });
   assert.ok(shortName.error, 'one-character nickname must be rejected by the server');
   const league = await rpc(one.api, 'duel_weekly_league');
   assert.ok(league.players.some((entry) => entry.points === 3), 'live win must award three league points');
   assert.ok(league.players.some((entry) => entry.nickname === renamedWinner), 'weekly league must use the latest profile nickname');
   const blockedGhost = await one.api.rpc('duel_start_ghost', { p_nickname: one.name });
   assert.ok(blockedGhost.error, 'authenticated clients must not be able to create ghost matches');
+
+  const randomRoomRow = await admin.from('duel_sessions').select('host_id,guest_id').eq('id', second.match.sessionId).single();
+  assert.ifError(randomRoomRow.error);
+  const scorePatch = randomRoomRow.data.host_id === randomWinner.id ? { host_score: 4 } : { guest_score: 4 };
+  const primedRandomSeries = await admin.from('duel_sessions').update(scorePatch).eq('id', second.match.sessionId);
+  assert.ifError(primedRandomSeries.error);
+  const randomRoundTwo = await rpc(randomLoser.api, 'duel_choose_session_cat', { p_session_id: second.match.sessionId, p_level: 7 });
+  assert.deepEqual(
+    [randomRoundTwo.source, randomRoundTwo.status, randomRoundTwo.round, randomRoundTwo.selectedLevel, randomRoundTwo.match.matchSource],
+    ['random', 'playing', 2, 7, 'random'],
+    'later real-time rounds must preserve the random source',
+  );
+  await waitUntil(randomRoundTwo.match.startsAt + 700, randomRoundTwo.match.serverNow);
+  const decidingRandomWin = await rpc(randomWinner.api, 'duel_claim', { p_match_id: randomRoundTwo.match.id, p_elapsed_ms: 1200, p_attempts: 1, p_accuracy: 96 });
+  assert.equal(decidingRandomWin.didWin, true);
+  const closedRandomSeries = await rpc(randomWinner.api, 'duel_get_session', { p_session_id: second.match.sessionId });
+  assert.deepEqual([closedRandomSeries.status, closedRandomSeries.myScore, closedRandomSeries.opponentScore], ['closed', 5, 0], 'a real-time series must close only when someone reaches five wins');
 
   const friendHost = await player('friend-host');
   const friendGuest = await player('friend-guest');
@@ -267,7 +307,7 @@ try {
   const recoveredWinner = await rpc(failed.api, 'duel_claim', { p_match_id: survivalJoin.match.id, p_elapsed_ms: 22_000, p_attempts: 9, p_accuracy: 86 });
   assert.equal(recoveredWinner.didWin, true, 'a player may keep trying and win after any number of failures');
 
-  console.log('✓ remote auth, real-only matching, endless friend sessions, first-catch-only rounds, unlimited retries, timeout fallback, Realtime, profiles, and league isolation verified');
+  console.log('✓ remote auth, first-to-five real-time and friend sessions, winner-only waiting taunts, first-catch-only rounds, unlimited retries, timeout fallback, Realtime, profiles, and league isolation verified');
 } finally {
   if (createdUsers.length) {
     const ids = `(${createdUsers.join(',')})`;

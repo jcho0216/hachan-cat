@@ -27,6 +27,7 @@ export type DuelSessionStatus = 'playing' | 'choosing' | 'closed';
 
 export type DuelSession = {
   id: string;
+  source: 'random' | 'invite';
   status: DuelSessionStatus;
   round: number;
   selectedLevel: number;
@@ -42,6 +43,8 @@ export type DuelSession = {
   leftByMe: boolean;
   opponentLeft: boolean;
   lastWinnerIsMe: boolean;
+  lastTauntId: number | null;
+  lastTauntIsMine: boolean;
   match: DuelMatch | null;
 };
 

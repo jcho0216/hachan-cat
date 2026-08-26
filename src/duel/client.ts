@@ -88,6 +88,7 @@ function normalizeSession(value: unknown): DuelSession {
   const rawDeadline = nullableNumber(row.choiceDeadline ?? row.choice_deadline);
   return {
     id,
+    source: row.source === 'random' ? 'random' : 'invite',
     status: status as DuelSession['status'],
     round: Math.max(1, Math.round(finiteNumber(row.round, 1))),
     selectedLevel,
@@ -103,6 +104,8 @@ function normalizeSession(value: unknown): DuelSession {
     leftByMe: row.leftByMe === true,
     opponentLeft: row.opponentLeft === true,
     lastWinnerIsMe: row.lastWinnerIsMe === true,
+    lastTauntId: nullableNumber(row.lastTauntId),
+    lastTauntIsMine: row.lastTauntIsMine === true,
     match: row.match ? normalizeMatch(row.match) : null,
   };
 }
@@ -229,6 +232,13 @@ export async function getActiveDuelSession() {
 export async function chooseDuelSessionCat(sessionId: string, level?: number) {
   await ensureDuelSession();
   const response = await supabase().rpc('duel_choose_session_cat', { p_session_id: sessionId, p_level: level === undefined ? null : Math.round(level) });
+  if (response.error) throw response.error;
+  return normalizeSession(response.data);
+}
+
+export async function sendDuelSessionTaunt(sessionId: string, tauntId: number) {
+  await ensureDuelSession();
+  const response = await supabase().rpc('duel_send_session_taunt', { p_session_id: sessionId, p_taunt_id: Math.round(tauntId) });
   if (response.error) throw response.error;
   return normalizeSession(response.data);
 }

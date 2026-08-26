@@ -21,9 +21,9 @@ export function DuelHomeCard({ configured, onlineCount, profile, nickname, onPla
     </header>
     <div className="duel-mode-grid">
       <button className="duel-mode-card is-random" onClick={onPlay} disabled={!configured}>
-        <span>⚡ 실시간 매칭</span>
+        <span>⚡ 실시간 · 5승 선착순</span>
         <strong>바로 붙기</strong>
-        <small>지금 접속한 진짜 상대만</small>
+        <small>한 판 무제한 · 패자가 다음 냥이</small>
         <em>지금 대결 <b>→</b></em>
       </button>
       <button className="duel-mode-card is-friend" onClick={onInvite} disabled={!configured}>

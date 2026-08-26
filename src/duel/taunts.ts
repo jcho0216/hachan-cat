@@ -26,6 +26,19 @@ const REGULAR_TAUNTS = [
   '고양이는 같았는데 결과는 왜 다르지?',
 ];
 
+export const DUEL_WAITING_TAUNTS = [
+  '그것밖에 안 되냐?',
+  '거의 잡았네. 거의.',
+  '한 번에 잡았는데, 넌 뭐 함?',
+  '손가락 업데이트가 필요해 보임.',
+  '고양이는 같았는데 결과는 왜 다르지?',
+  '천천히 해. 어차피 또 질 거니까.',
+] as const;
+
+export function duelWaitingTaunt(tauntId: number | null) {
+  return tauntId !== null && Number.isInteger(tauntId) ? DUEL_WAITING_TAUNTS[tauntId] ?? null : null;
+}
+
 function hash(text: string) {
   let value = 2166136261;
   for (let index = 0; index < text.length; index += 1) value = Math.imul(value ^ text.charCodeAt(index), 16777619);
