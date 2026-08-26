@@ -8,7 +8,7 @@ export type CatReward = {
   face: 'smug' | 'tired' | 'blank' | 'grumpy' | 'proud' | 'sleepy';
 };
 
-export type GameMode = 'campaign' | 'daily' | 'challenge';
+export type GameMode = 'campaign' | 'daily' | 'challenge' | 'duel';
 
 export type GameResult = {
   attempts: number;

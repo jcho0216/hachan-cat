@@ -8,3 +8,6 @@ npm-debug.log*
 .pnpm-store
 *.tsbuildinfo
 screenshot-*.png
+
+.vercel
+.env*

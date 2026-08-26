@@ -11,11 +11,14 @@
     "test:movements": "node --experimental-strip-types scripts/verify-movements.mjs",
     "test:cards": "node --experimental-strip-types scripts/verify-card-faces.mjs",
     "test:social": "node scripts/verify-social-preview.mjs",
-    "test:game-loop": "node --experimental-strip-types scripts/verify-game-loop.mjs"
+    "test:game-loop": "node --experimental-strip-types scripts/verify-game-loop.mjs",
+    "test:duel": "node scripts/verify-duel-system.mjs",
+    "test:duel:live": "node scripts/verify-duel-live.mjs"
   },
   "dependencies": {
     "@apps-in-toss/web-framework": "^2.4.1",
     "@fontsource/gaegu": "^5.3.0",
+    "@supabase/supabase-js": "^2.112.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

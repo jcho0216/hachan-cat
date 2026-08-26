@@ -1,0 +1,44 @@
+import { CatCharacter } from './CatCharacter';
+import { getLevel } from '../levels';
+import type { DuelOutcome, DuelProfile } from '../duel/types';
+
+type Props = {
+  outcome: DuelOutcome;
+  profile: DuelProfile | null;
+  busy: boolean;
+  onRematch: () => void;
+  onShare: () => void;
+  onHome: () => void;
+};
+
+export function DuelResult({ outcome, profile, busy, onRematch, onShare, onHome }: Props) {
+  const { match } = outcome;
+  const won = match.didWin === true;
+  const draw = match.isDraw;
+  const local = outcome.localElapsedMs;
+  const winning = match.winnerElapsedMs;
+  const delta = local !== null && winning !== null ? Math.abs(local - winning) : null;
+  const level = getLevel(match.level);
+  const headline = draw ? '고양이만 단독승.'
+    : won ? local === null ? '상대 손이 먼저 도망감' : delta && delta > 0 ? `${(delta / 1000).toFixed(2)}초 먼저 잡음` : '그 손, 서버도 인정.'
+    : outcome.reason === 'opponent' ? '상대 손이 먼저 닿음'
+      : outcome.reason === 'connection' ? '연결이 먼저 도망감'
+        : outcome.reason === 'misses' ? '기회를 먼저 다 씀' : '15초를 먼저 다 씀';
+
+  return <section className={`duel-result-screen page-enter ${draw ? 'is-draw' : won ? 'is-win' : 'is-loss'}`}>
+    <span className="duel-result-stamp">{draw ? 'CAT WINS' : won ? 'FIRST HAND' : 'TOO LATE'}</span>
+    <h1>{draw ? '둘 다 놓침.' : won ? '냥탈 성공.' : '냥탈 실패.'}<br /><em>{headline}</em></h1>
+    <p>{match.opponentKind === 'ghost' ? '최근 기록' : '실시간 상대'} · {match.opponentName}</p>
+    <div className="duel-result-card">
+      <CatCharacter caught={won} pose={won ? 'panic' : 'taunt'} fur={level.fur} accent={level.accent} evil={level.evil} />
+      <blockquote>{draw ? '“둘이 합쳐도 나 하나를 못 잡네.”' : won ? '“사람끼리 싸우더니 결국 날 잡네.”' : '“둘 다 나보다 느린 건 똑같아.”'}</blockquote>
+      <div><span>내 기록<strong>{local === null ? won ? '기권승' : '못 잡음' : `${(local / 1000).toFixed(2)}초`}</strong></span><span>승부<strong>{draw ? '사이좋게 패배' : won ? local === null ? '상대 이탈' : '내가 먼저' : match.opponentKind === 'ghost' ? '기록이 먼저' : '상대가 먼저'}</strong></span></div>
+    </div>
+    {profile && <p className="duel-streak-note">{draw ? '둘 다 졌으니 연승도 사이좋게 멈춤.' : won ? profile.currentStreak >= 2 ? `🔥 ${profile.currentStreak}연승. 이제 슬슬 이름값 중.` : '첫 연승 불씨를 붙였습니다.' : profile.bestStreak ? `최고 ${profile.bestStreak}연승은 아직 기록에 남아 있음.` : '다음 승부터 연승을 셉니다.'}</p>}
+    <div className="duel-result-actions">
+      <button className="primary-button" onClick={onRematch} disabled={busy}>새 상대와 바로 붙기 <span>→</span></button>
+      <button className="secondary-button" onClick={onShare} disabled={busy}>{busy ? '공유창 여는 중…' : draw ? '무승부 재대결 보내기' : won ? '승리 도발 보내기' : '복수 요청 보내기'}</button>
+      <button className="text-button" onClick={onHome} disabled={busy}>홈으로</button>
+    </div>
+  </section>;
+}
