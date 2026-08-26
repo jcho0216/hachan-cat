@@ -125,7 +125,7 @@ export async function saveLossMemeCard(loss: GameLoss): Promise<SaveOutcome> {
   return savePng(base64, blob, `하찮냥-패배-Lv${loss.level}.png`);
 }
 
-async function shareWithFallback(title: string, message: string, webUrl: string, deepLink: string): Promise<ShareOutcome> {
+export async function shareWithFallback(title: string, message: string, webUrl: string, deepLink: string): Promise<ShareOutcome> {
   try {
     const { getTossShareLink, isMinVersionSupported, share } = await import('@apps-in-toss/web-framework');
     if (!isNativeShareVersionSupported(isMinVersionSupported)) throw new Error('네이티브 공유 미지원');

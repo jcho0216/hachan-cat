@@ -1,4 +1,5 @@
 export type DuelOpponentKind = 'live' | 'ghost';
+export type DuelMatchSource = 'random' | 'ghost' | 'invite';
 
 export type DuelMatch = {
   id: string;
@@ -8,6 +9,7 @@ export type DuelMatch = {
   expiresAt: number;
   status: 'ready' | 'finished' | 'expired';
   opponentKind: DuelOpponentKind;
+  matchSource: DuelMatchSource;
   opponentName: string;
   ghostElapsedMs: number | null;
   winnerId: string | null;
@@ -40,7 +42,32 @@ export type DuelProfile = {
   bestStreak: number;
   fastestWinMs: number | null;
   ghostWins: number;
+  friendMatches: number;
+  friendWins: number;
+  friendLosses: number;
 };
+
+export type DuelInviteStatus = 'waiting' | 'matched' | 'cancelled' | 'expired';
+
+export type DuelInvite = {
+  id: string;
+  status: DuelInviteStatus;
+  hostName: string;
+  guestName: string | null;
+  expiresAt: number;
+  isHost: boolean;
+  isGuest: boolean;
+  match: DuelMatch | null;
+};
+
+export type DuelInvitePreview = {
+  state: 'loading' | 'ready' | 'waiting' | 'matched' | 'own' | 'expired' | 'cancelled' | 'full' | 'busy' | 'missing' | 'error';
+  hostName: string;
+  expiresAt: number;
+  invite: DuelInvite | null;
+};
+
+export type DuelInviteCreation = { token: string; invite: DuelInvite };
 
 export type DuelLeaguePlayer = {
   rank: number;

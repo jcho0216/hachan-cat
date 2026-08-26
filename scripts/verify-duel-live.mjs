@@ -18,7 +18,7 @@ async function player(label) {
   assert.ifError(signed.error);
   assert.ok(signed.data.user?.id, `${label} anonymous auth failed`);
   createdUsers.push(signed.data.user.id);
-  return { api, id: signed.data.user.id, name: `QA ${label} ${Date.now().toString(36).slice(-4)}` };
+  return { api, id: signed.data.user.id, name: `QA ${label.slice(0, 8)} ${Date.now().toString(36).slice(-4)}` };
 }
 
 async function rpc(api, name, args = {}) {
@@ -84,6 +84,70 @@ try {
   const league = await rpc(one.api, 'duel_weekly_league');
   assert.ok(league.players.some((entry) => entry.points === 3), 'live win must award three league points');
 
+  const friendHost = await player('friend-host');
+  const friendGuest = await player('friend-guest');
+  const friendThird = await player('friend-third');
+  const invitation = await rpc(friendHost.api, 'duel_create_invite', { p_nickname: friendHost.name });
+  assert.match(invitation.token, /^[A-Za-z0-9_-]{20,40}$/);
+  assert.equal(invitation.invite.status, 'waiting');
+  assert.equal(invitation.invite.isHost, true);
+  const preview = await rpc(friendGuest.api, 'duel_preview_invite', { p_token: invitation.token });
+  assert.equal(preview.state, 'waiting');
+  assert.equal(preview.hostName, friendHost.name);
+  const untouchedInvite = await admin.from('duel_invites').select('guest_id,status').eq('id', invitation.invite.id).single();
+  assert.ifError(untouchedInvite.error);
+  assert.equal(untouchedInvite.data.guest_id, null, 'preview must not claim the guest seat');
+
+  let inviteRealtimeMatched = false;
+  const inviteRealtime = friendHost.api.channel(`qa-invite-${invitation.invite.id}`)
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'duel_invites', filter: `id=eq.${invitation.invite.id}` }, (payload) => {
+      if (payload.new?.status === 'matched') inviteRealtimeMatched = true;
+    });
+  await new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('Invite Realtime subscription timeout')), 6000);
+    inviteRealtime.subscribe((status) => { if (status === 'SUBSCRIBED') { clearTimeout(timeout); resolve(); } });
+  });
+
+  const friendAccepts = await Promise.all([
+    rpc(friendGuest.api, 'duel_accept_invite', { p_token: invitation.token, p_nickname: friendGuest.name }),
+    rpc(friendThird.api, 'duel_accept_invite', { p_token: invitation.token, p_nickname: friendThird.name }),
+  ]);
+  const accepted = friendAccepts.find((result) => result.state === 'matched');
+  const rejected = friendAccepts.find((result) => result.state !== 'matched');
+  assert.ok(accepted?.match, 'exactly one invite accepter must receive a match');
+  assert.equal(rejected?.state, 'full');
+  assert.equal(accepted.match.matchSource, 'invite');
+  assert.equal(accepted.match.opponentKind, 'live');
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  assert.equal(inviteRealtimeMatched, true, 'host must receive invite acceptance over Realtime');
+  await friendHost.api.removeChannel(inviteRealtime);
+
+  const hostRoom = await rpc(friendHost.api, 'duel_get_invite', { p_invite_id: invitation.invite.id });
+  assert.equal(hostRoom.status, 'matched');
+  assert.equal(hostRoom.match.id, accepted.match.id);
+  assert.equal(hostRoom.match.startsAt, accepted.match.startsAt);
+  const acceptedPlayer = friendAccepts[0].state === 'matched' ? friendGuest : friendThird;
+  const rejectedPlayer = acceptedPlayer === friendGuest ? friendThird : friendGuest;
+  const hiddenInvite = await rejectedPlayer.api.from('duel_invites').select('id').eq('id', invitation.invite.id);
+  assert.ifError(hiddenInvite.error);
+  assert.equal(hiddenInvite.data.length, 0, 'non-participants must not read an invite room');
+
+  await waitUntil(accepted.match.startsAt + 700, accepted.match.serverNow);
+  const friendWin = await rpc(friendHost.api, 'duel_claim', { p_match_id: accepted.match.id, p_elapsed_ms: 1450, p_attempts: 2, p_accuracy: 92 });
+  assert.equal(friendWin.didWin, true);
+  const friendHostProfile = await rpc(friendHost.api, 'duel_get_profile');
+  const friendGuestProfile = await rpc(acceptedPlayer.api, 'duel_get_profile');
+  assert.deepEqual([friendHostProfile.matches, friendHostProfile.wins, friendHostProfile.friendMatches, friendHostProfile.friendWins], [0, 0, 1, 1]);
+  assert.deepEqual([friendGuestProfile.matches, friendGuestProfile.losses, friendGuestProfile.friendMatches, friendGuestProfile.friendLosses], [0, 0, 1, 1]);
+  const friendLeague = await rpc(friendHost.api, 'duel_weekly_league');
+  assert.equal(friendLeague.players.some((entry) => entry.isMe), false, 'friend wins must not enter the weekly league');
+
+  const cancelledInvitation = await rpc(friendHost.api, 'duel_create_invite', { p_nickname: friendHost.name });
+  const cancelled = await rpc(friendHost.api, 'duel_cancel_invite', { p_invite_id: cancelledInvitation.invite.id });
+  assert.equal(cancelled.status, 'cancelled');
+  const cancelledPreview = await rpc(friendGuest.api, 'duel_preview_invite', { p_token: cancelledInvitation.token });
+  assert.equal(cancelledPreview.state, 'cancelled');
+
   const ghostPlayer = await player('ghost');
   await rpc(ghostPlayer.api, 'duel_find_or_join', { p_nickname: ghostPlayer.name });
   const ghostJoin = await rpc(ghostPlayer.api, 'duel_start_ghost', { p_nickname: ghostPlayer.name });
@@ -129,7 +193,7 @@ try {
   const survived = await rpc(survivor.api, 'duel_settle_failure', { p_match_id: survivalJoin.match.id });
   assert.equal(survived.didWin, true, 'one-sided failure must award a survival win');
 
-  console.log('✓ remote auth, live matching, atomic winner, Realtime, ghost, forfeit, draw settlement, survival win, profile, and weighted league verified');
+  console.log('✓ remote auth, random and friend matching, explicit invite acceptance, one-seat lock, invite Realtime, isolated friend records, atomic winner, ghost, forfeit, draw, profile, and weighted league verified');
 } finally {
   for (const userId of createdUsers.reverse()) {
     const removed = await admin.auth.admin.deleteUser(userId);

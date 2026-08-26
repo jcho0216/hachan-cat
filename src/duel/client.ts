@@ -1,5 +1,5 @@
 import { createClient, type RealtimeChannel, type SupabaseClient } from '@supabase/supabase-js';
-import type { DuelJoinResult, DuelLeague, DuelLeaguePlayer, DuelMatch, DuelProfile } from './types';
+import type { DuelInvite, DuelInviteCreation, DuelInvitePreview, DuelJoinResult, DuelLeague, DuelLeaguePlayer, DuelMatch, DuelProfile } from './types';
 import { isDuelConfigured } from './config';
 
 const url = import.meta.env.VITE_SUPABASE_URL?.trim();
@@ -30,9 +30,11 @@ function normalizeMatch(value: unknown): DuelMatch {
   const level = finiteNumber(row.level);
   const status = row.status;
   const opponentKind = row.opponentKind ?? row.opponent_kind;
+  const matchSource = row.matchSource ?? row.match_source ?? (opponentKind === 'ghost' ? 'ghost' : 'random');
   if (!id || !Number.isInteger(level) || level < 3 || level > 8
     || !['ready', 'finished', 'expired'].includes(String(status))
-    || !['live', 'ghost'].includes(String(opponentKind))) throw new Error('INVALID_DUEL_MATCH');
+    || !['live', 'ghost'].includes(String(opponentKind))
+    || !['random', 'ghost', 'invite'].includes(String(matchSource))) throw new Error('INVALID_DUEL_MATCH');
 
   const playerOne = typeof row.player_one === 'string' ? row.player_one : '';
   const isPlayerOne = playerOne === userId;
@@ -58,6 +60,7 @@ function normalizeMatch(value: unknown): DuelMatch {
     expiresAt: rawExpiresAt + serverClockOffsetMs,
     status: normalizedStatus,
     opponentKind: normalizedKind,
+    matchSource: matchSource as DuelMatch['matchSource'],
     opponentName: typeof (row.opponentName ?? (isPlayerOne ? row.player_two_name : row.player_one_name)) === 'string'
       ? String(row.opponentName ?? (isPlayerOne ? row.player_two_name : row.player_one_name)) : '이름 없는 냥손',
     ghostElapsedMs: nullableNumber(row.ghostElapsedMs ?? row.ghost_elapsed_ms),
@@ -68,6 +71,43 @@ function normalizeMatch(value: unknown): DuelMatch {
     winnerAccuracy: nullableNumber(row.winnerAccuracy ?? row.winner_accuracy),
     isDraw,
     didWin,
+  };
+}
+
+function normalizeInvite(value: unknown): DuelInvite {
+  if (!value || typeof value !== 'object') throw new Error('INVALID_DUEL_INVITE');
+  const row = value as Record<string, unknown>;
+  const status = String(row.status);
+  const id = typeof row.id === 'string' ? row.id : '';
+  if (!id || !['waiting', 'matched', 'cancelled', 'expired'].includes(status)) throw new Error('INVALID_DUEL_INVITE');
+  const serverNow = finiteNumber(row.serverNow, Number.NaN);
+  if (Number.isFinite(serverNow)) serverClockOffsetMs = Date.now() - serverNow;
+  return {
+    id,
+    status: status as DuelInvite['status'],
+    hostName: typeof row.hostName === 'string' ? row.hostName : '이름 없는 냥손',
+    guestName: typeof row.guestName === 'string' ? row.guestName : null,
+    expiresAt: finiteNumber(row.expiresAt) + serverClockOffsetMs,
+    isHost: row.isHost === true,
+    isGuest: row.isGuest === true,
+    match: row.match ? normalizeMatch(row.match) : null,
+  };
+}
+
+function normalizeInvitePreview(value: unknown): DuelInvitePreview {
+  if (!value || typeof value !== 'object') throw new Error('INVALID_DUEL_INVITE_PREVIEW');
+  const row = value as Record<string, unknown>;
+  const rawState = String(row.state);
+  const allowed = ['ready', 'waiting', 'matched', 'own', 'expired', 'cancelled', 'full', 'busy', 'missing'];
+  if (!allowed.includes(rawState)) throw new Error('INVALID_DUEL_INVITE_PREVIEW');
+  const invite = row.invite ? normalizeInvite(row.invite) : null;
+  const serverNow = finiteNumber(row.serverNow, Number.NaN);
+  if (Number.isFinite(serverNow)) serverClockOffsetMs = Date.now() - serverNow;
+  return {
+    state: invite?.isHost && invite.status === 'waiting' ? 'own' : rawState as DuelInvitePreview['state'],
+    hostName: invite?.hostName ?? (typeof row.hostName === 'string' ? row.hostName : '이름 없는 냥손'),
+    expiresAt: invite?.expiresAt ?? finiteNumber(row.expiresAt) + serverClockOffsetMs,
+    invite,
   };
 }
 
@@ -116,6 +156,45 @@ export async function startGhostDuel(nickname: string) {
   const response = await supabase().rpc('duel_start_ghost', { p_nickname: nickname });
   if (response.error) throw response.error;
   return normalizeJoin(response.data);
+}
+
+export async function createDuelInvite(nickname: string): Promise<DuelInviteCreation> {
+  await ensureDuelSession();
+  const response = await supabase().rpc('duel_create_invite', { p_nickname: nickname });
+  if (response.error) throw response.error;
+  const row = response.data as Record<string, unknown> | null;
+  if (!row || typeof row.token !== 'string') throw new Error('INVALID_DUEL_INVITE_CREATION');
+  return { token: row.token, invite: normalizeInvite(row.invite) };
+}
+
+export async function previewDuelInvite(token: string) {
+  await ensureDuelSession();
+  const response = await supabase().rpc('duel_preview_invite', { p_token: token });
+  if (response.error) throw response.error;
+  return normalizeInvitePreview(response.data);
+}
+
+export async function acceptDuelInvite(token: string, nickname: string) {
+  await ensureDuelSession();
+  const response = await supabase().rpc('duel_accept_invite', { p_token: token, p_nickname: nickname });
+  if (response.error) throw response.error;
+  const preview = normalizeInvitePreview(response.data);
+  const row = response.data as Record<string, unknown>;
+  return { ...preview, match: row.match ? normalizeMatch(row.match) : preview.invite?.match ?? null };
+}
+
+export async function getDuelInvite(inviteId: string) {
+  await ensureDuelSession();
+  const response = await supabase().rpc('duel_get_invite', { p_invite_id: inviteId });
+  if (response.error) throw response.error;
+  return normalizeInvite(response.data);
+}
+
+export async function cancelDuelInvite(inviteId: string) {
+  await ensureDuelSession();
+  const response = await supabase().rpc('duel_cancel_invite', { p_invite_id: inviteId });
+  if (response.error) throw response.error;
+  return normalizeInvite(response.data);
 }
 
 export async function claimDuel(matchId: string, elapsedMs: number, attempts: number, accuracy: number) {
@@ -173,6 +252,9 @@ export async function getDuelProfile(): Promise<DuelProfile> {
     bestStreak: Math.max(0, Math.round(finiteNumber(row.bestStreak))),
     fastestWinMs: nullableNumber(row.fastestWinMs),
     ghostWins: Math.max(0, Math.round(finiteNumber(row.ghostWins))),
+    friendMatches: Math.max(0, Math.round(finiteNumber(row.friendMatches))),
+    friendWins: Math.max(0, Math.round(finiteNumber(row.friendWins))),
+    friendLosses: Math.max(0, Math.round(finiteNumber(row.friendLosses))),
   };
 }
 
@@ -207,6 +289,13 @@ export function subscribeToDuel(matchId: string, onMatch: (match: DuelMatch) => 
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'duel_matches', filter: `id=eq.${matchId}` }, (payload) => {
       try { onMatch(normalizeMatch(payload.new)); } catch { /* 손상된 실시간 이벤트는 폴백 UI가 처리한다. */ }
     })
+    .subscribe();
+  return () => { void supabase().removeChannel(channel); };
+}
+
+export function subscribeToDuelInvite(inviteId: string, onChange: () => void) {
+  const channel = supabase().channel(`duel-invite-${inviteId}`)
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'duel_invites', filter: `id=eq.${inviteId}` }, onChange)
     .subscribe();
   return () => { void supabase().removeChannel(channel); };
 }
