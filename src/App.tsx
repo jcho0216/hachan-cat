@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { CatCharacter } from './components/CatCharacter';
 import { LossCard } from './components/LossCard';
 import { RewardCard } from './components/RewardCard';
@@ -192,6 +192,12 @@ function App() {
   useEffect(() => { safeStorageSet(LEVEL_BESTS_KEY, JSON.stringify(levelBests)); }, [levelBests]);
   useEffect(() => { safeStorageSet(DAILY_HISTORY_KEY, JSON.stringify(dailyHistory)); }, [dailyHistory]);
   useEffect(() => { activeDuelRef.current = activeDuel; }, [activeDuel]);
+  useLayoutEffect(() => {
+    const previous = window.history.scrollRestoration;
+    window.history.scrollRestoration = 'manual';
+    return () => { window.history.scrollRestoration = previous; };
+  }, []);
+  useLayoutEffect(() => { window.scrollTo(0, 0); }, [screen]);
   useEffect(() => {
     let disposed = false;
     let disconnect: () => void = () => undefined;
@@ -204,7 +210,6 @@ function App() {
   }, []);
   useEffect(() => {
     screenRef.current = screen;
-    window.scrollTo(0, 0);
     if (screen === 'home') {
       if (nestedHistoryRef.current) { nestedHistoryRef.current = false; window.history.back(); }
       return;

@@ -28,7 +28,8 @@ assert.match(migration, /opponent_kind = 'live' then 3 else 1/, 'weekly league m
 for (const behavior of ['beginDuel', 'resolveDuelCatch', 'resolveDuelFailure', 'finishGhostDuel', 'duelResult', 'duelLeague']) {
   assert.ok(app.includes(behavior), `${behavior} client flow missing`);
 }
-assert.match(app, /window\.scrollTo\(0, 0\)/, 'screen changes must reset scroll position');
+assert.match(app, /scrollRestoration = 'manual'/, 'browser scroll restoration must not hide screen headers');
+assert.match(app, /useLayoutEffect\(\(\) => \{ window\.scrollTo\(0, 0\); \}, \[screen\]\)/, 'screen changes must reset scroll position before paint');
 for (const rpc of ['duel_find_or_join', 'duel_start_ghost', 'duel_claim', 'duel_finish_ghost', 'duel_forfeit', 'duel_mark_failure', 'duel_settle_failure', 'duel_get_profile', 'duel_weekly_league']) {
   assert.ok(client.includes(`'${rpc}'`), `${rpc} client binding missing`);
 }
