@@ -1,5 +1,6 @@
 import { CatCharacter } from './CatCharacter';
 import { getLevel } from '../levels';
+import { getOpponentCatchReaction } from '../duel/taunts';
 import type { DuelOutcome, DuelProfile } from '../duel/types';
 
 type Props = {
@@ -19,9 +20,10 @@ export function DuelResult({ outcome, profile, busy, onRematch, onInvite, onHome
   const winning = match.winnerElapsedMs;
   const delta = local !== null && winning !== null ? Math.abs(local - winning) : null;
   const level = getLevel(match.level);
+  const opponentReaction = !won && !draw && outcome.reason === 'opponent' ? getOpponentCatchReaction(outcome) : null;
   const headline = draw ? '고양이만 단독승.'
     : won ? local === null ? '상대 손이 먼저 도망감' : delta && delta > 0 ? `${(delta / 1000).toFixed(2)}초 먼저 잡음` : '그 손, 서버도 인정.'
-    : outcome.reason === 'opponent' ? '상대 손이 먼저 닿음'
+    : outcome.reason === 'opponent' ? winning !== null ? `${(winning / 1000).toFixed(2)}초에 선착순 당함` : '상대 손이 먼저 닿음'
       : outcome.reason === 'connection' ? '연결이 먼저 도망감'
         : outcome.reason === 'misses' ? '기회를 먼저 다 씀' : '15초를 먼저 다 씀';
 
@@ -31,7 +33,7 @@ export function DuelResult({ outcome, profile, busy, onRematch, onInvite, onHome
     <p>{match.matchSource === 'invite' ? '친구 초대전' : match.opponentKind === 'ghost' ? '최근 기록' : '실시간 상대'} · {match.opponentName}</p>
     <div className="duel-result-card">
       <CatCharacter caught={won} pose={won ? 'panic' : 'taunt'} fur={level.fur} accent={level.accent} evil={level.evil} />
-      <blockquote>{draw ? '“둘이 합쳐도 나 하나를 못 잡네.”' : won ? '“사람끼리 싸우더니 결국 날 잡네.”' : '“둘 다 나보다 느린 건 똑같아.”'}</blockquote>
+      <blockquote>{draw ? '“둘이 합쳐도 나 하나를 못 잡네.”' : won ? '“사람끼리 싸우더니 결국 날 잡네.”' : opponentReaction ? <>“{opponentReaction.taunt}”<small>— 상대 손 자동번역</small></> : '“둘 다 나보다 느린 건 똑같아.”'}</blockquote>
       <div><span>내 기록<strong>{local === null ? won ? '기권승' : '못 잡음' : `${(local / 1000).toFixed(2)}초`}</strong></span><span>승부<strong>{draw ? '사이좋게 패배' : won ? local === null ? '상대 이탈' : '내가 먼저' : match.opponentKind === 'ghost' ? '기록이 먼저' : '상대가 먼저'}</strong></span></div>
     </div>
     {profile && <p className="duel-streak-note">{match.matchSource === 'invite' ? `친구전 ${profile.friendWins}승 ${profile.friendLosses}패 · 주간 리그 점수는 그대로.` : draw ? '둘 다 졌으니 연승도 사이좋게 멈춤.' : won ? profile.currentStreak >= 2 ? `🔥 ${profile.currentStreak}연승. 이제 슬슬 이름값 중.` : '첫 연승 불씨를 붙였습니다.' : profile.bestStreak ? `최고 ${profile.bestStreak}연승은 아직 기록에 남아 있음.` : '다음 승부터 연승을 셉니다.'}</p>}

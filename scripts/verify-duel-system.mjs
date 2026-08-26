@@ -7,6 +7,10 @@ const migration = readdirSync(migrationDirectory).filter((name) => name.endsWith
 const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
 const client = readFileSync(new URL('../src/duel/client.ts', import.meta.url), 'utf8');
 const invite = readFileSync(new URL('../src/duel/invite.ts', import.meta.url), 'utf8');
+const taunts = readFileSync(new URL('../src/duel/taunts.ts', import.meta.url), 'utf8');
+const homeCard = readFileSync(new URL('../src/components/DuelHomeCard.tsx', import.meta.url), 'utf8');
+const finishBurst = readFileSync(new URL('../src/components/DuelFinishBurst.tsx', import.meta.url), 'utf8');
+const styles = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
 const spec = readFileSync(new URL('../docs/ONLINE_DUEL_SPEC.md', import.meta.url), 'utf8');
 
 for (const table of ['duel_queue', 'duel_matches', 'duel_runs', 'duel_profiles', 'duel_invites']) {
@@ -39,6 +43,12 @@ for (const behavior of ['beginDuel', 'resolveDuelCatch', 'resolveDuelFailure', '
 assert.match(app, /scrollRestoration = 'manual'/, 'browser scroll restoration must not hide screen headers');
 assert.match(app, /useLayoutEffect\(\(\) => \{ window\.scrollTo\(0, 0\); \}, \[screen\]\)/, 'screen changes must reset scroll position before paint');
 assert.match(app, /requestAnimationFrame\(\(\) => window\.scrollTo\(0, 0\)\)/, 'late WebView scroll restoration must be corrected after paint');
+assert.match(app, /reason === 'opponent' \? 'duelBurst' : 'duelResult'/, 'opponent first-catch must trigger the reaction beat before results');
+assert.match(finishBurst, /상대 손 번역기/, 'opponent catch reaction must clearly identify generated taunt copy');
+assert.match(finishBurst, /setTimeout\(\(\) => doneRef\.current\(\), 2_200\)/, 'reaction beat must automatically continue to results');
+for (const copy of ['그것밖에 안 되냐?', '거의 잡았네. 거의.', '한 번에 잡았는데, 넌 뭐 함?']) assert.ok(taunts.includes(copy), `contextual taunt missing: ${copy}`);
+for (const mode of ['바로 붙기', '친구 지목전', '시비 걸기']) assert.ok(homeCard.includes(mode), `battle mode hierarchy missing: ${mode}`);
+assert.match(styles, /html, body, #root \{ height: 100%;[^}]+overflow: hidden;/, 'WebView root must not restore a hidden page scroll position');
 for (const rpc of ['duel_find_or_join', 'duel_start_ghost', 'duel_claim', 'duel_finish_ghost', 'duel_forfeit', 'duel_mark_failure', 'duel_settle_failure', 'duel_get_profile', 'duel_weekly_league', 'duel_create_invite', 'duel_preview_invite', 'duel_accept_invite', 'duel_get_invite', 'duel_cancel_invite']) {
   assert.ok(client.includes(`'${rpc}'`), `${rpc} client binding missing`);
 }

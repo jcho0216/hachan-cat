@@ -12,7 +12,7 @@
     "test:cards": "node --experimental-strip-types scripts/verify-card-faces.mjs",
     "test:social": "node scripts/verify-social-preview.mjs",
     "test:game-loop": "node --experimental-strip-types scripts/verify-game-loop.mjs",
-    "test:duel": "node scripts/verify-duel-system.mjs",
+    "test:duel": "node scripts/verify-duel-system.mjs && node --experimental-strip-types scripts/verify-duel-reactions.ts",
     "test:duel:live": "node scripts/verify-duel-live.mjs"
   },
   "dependencies": {

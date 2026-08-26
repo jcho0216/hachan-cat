@@ -30,9 +30,10 @@ export function DuelInviteAccept({ preview, remainingSeconds, busy, onAccept, on
     <p>{loading ? '누가 얼마나 진심인지 확인 중.' : ready ? '같은 고양이, 같은 시작. 먼저 잡는 손만 승리.' : terminal?.[1]}</p>
     <div className="duel-invite-cat"><CatCharacter pose={ready ? 'taunt' : loading ? 'peek' : 'butt'} evil={ready ? 7 : 3} /><span>{ready ? '어쩔?' : '?'}</span></div>
     {ready && <div className="duel-invite-versus"><div><small>도전자</small><strong>{preview.hostName}</strong></div><b>VS</b><div><small>수락하면</small><strong>바로 동시 시작</strong></div></div>}
+    {ready && <div className="duel-rule-chips"><span>⏱ 15초</span><span>✋ 기회 5번</span><span>🏁 선착순 1명</span></div>}
     {ready && <div className="duel-invite-expiry"><span>초대장 유효 시간</span><strong>{Math.floor(remainingSeconds / 60)}:{String(remainingSeconds % 60).padStart(2, '0')}</strong></div>}
     {loading ? <div className="duel-dots" aria-label="초대장 확인 중"><i /><i /><i /></div>
-      : ready ? <div className="duel-invite-actions"><button className="primary-button" onClick={onAccept} disabled={busy}>{busy ? '자리 잡는 중…' : '도전 받기'} <span>→</span></button><button className="text-button" onClick={onDecline} disabled={busy}>쫄린 척 홈으로</button></div>
+      : ready ? <div className="duel-invite-actions"><button className="primary-button" onClick={onAccept} disabled={busy}>{busy ? '자리 잡는 중…' : '시비 접수하고 붙기'} <span>→</span></button><button className="text-button" onClick={onDecline} disabled={busy}>못 본 척 홈으로</button></div>
         : <div className="duel-invite-actions"><button className="primary-button" onClick={onCreate} disabled={busy}>내가 새 배틀 열기 <span>→</span></button><button className="secondary-button" onClick={onRetry} disabled={busy}>초대장 다시 확인</button><button className="text-button" onClick={onDecline}>홈으로</button></div>}
   </section>;
 }

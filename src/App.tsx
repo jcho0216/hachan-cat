@@ -32,12 +32,13 @@ import { DuelResult } from './components/DuelResult';
 import { DuelLeague } from './components/DuelLeague';
 import { DuelInviteAccept } from './components/DuelInviteAccept';
 import { DuelInviteLobby } from './components/DuelInviteLobby';
+import { DuelFinishBurst } from './components/DuelFinishBurst';
 import { isDuelConfigured } from './duel/config';
 import { duelNickname as getDuelNickname } from './duel/nickname';
 import { clearBattleInviteToken, parseBattleInviteToken, readStoredBattleInviteToken, shareBattleInvite, storeBattleInviteToken, stripBattleInviteFromUrl } from './duel/invite';
 import type { DuelInvite, DuelInvitePreview, DuelLeague as DuelLeagueData, DuelMatch, DuelOutcome, DuelProfile } from './duel/types';
 
-type Screen = 'home' | 'levels' | 'game' | 'ending' | 'result' | 'loss' | 'collection' | 'duelLobby' | 'duelReady' | 'duelResult' | 'duelLeague' | 'duelInvite' | 'duelInviteLobby';
+type Screen = 'home' | 'levels' | 'game' | 'ending' | 'result' | 'loss' | 'collection' | 'duelLobby' | 'duelReady' | 'duelBurst' | 'duelResult' | 'duelLeague' | 'duelInvite' | 'duelInviteLobby';
 type Aim = MovementAim & { x: number; y: number; clientX: number; clientY: number; startedAt: number; traveledPx: number };
 
 const START_POSITION: Position = { x: 50, y: 50, tilt: 0 };
@@ -66,6 +67,7 @@ const DEV_DUEL_MATCH: DuelMatch = {
   winnerId: 'preview-user', winnerSide: 'player', winnerElapsedMs: 4280, winnerAttempts: 2, winnerAccuracy: 91, didWin: true,
   isDraw: false,
 };
+const DEV_DUEL_LOSS_MATCH: DuelMatch = { ...DEV_DUEL_MATCH, winnerId: 'preview-opponent', winnerElapsedMs: 3120, winnerAttempts: 1, winnerAccuracy: 96, didWin: false };
 const DEV_DUEL_PROFILE: DuelProfile = { nickname: '손빠른 냥헌터', matches: 12, wins: 8, losses: 4, currentStreak: 3, bestStreak: 5, fastestWinMs: 3210, ghostWins: 3, friendMatches: 5, friendWins: 3, friendLosses: 2 };
 const DEV_DUEL_LEAGUE: DuelLeagueData = { weekStartsAt: Date.now(), myRank: 4, players: [
   { rank: 1, nickname: '약오른 발바닥', wins: 14, points: 34, fastestWinMs: 2680, isMe: false },
@@ -84,7 +86,7 @@ const readLegacyCaughtLevels = () => {
 };
 
 function App() {
-  const [screen, setScreen] = useState<Screen>(() => DEV_DUEL_PREVIEW === 'lobby' ? 'duelLobby' : DEV_DUEL_PREVIEW === 'ready' ? 'duelReady' : DEV_DUEL_PREVIEW === 'result' ? 'duelResult' : DEV_DUEL_PREVIEW === 'league' ? 'duelLeague' : DEV_DUEL_PREVIEW === 'invite' ? 'duelInvite' : DEV_DUEL_PREVIEW === 'invite-lobby' ? 'duelInviteLobby' : INITIAL_BATTLE_TOKEN ? 'duelInvite' : 'home');
+  const [screen, setScreen] = useState<Screen>(() => DEV_DUEL_PREVIEW === 'lobby' ? 'duelLobby' : DEV_DUEL_PREVIEW === 'ready' ? 'duelReady' : DEV_DUEL_PREVIEW === 'burst' ? 'duelBurst' : DEV_DUEL_PREVIEW === 'result' ? 'duelResult' : DEV_DUEL_PREVIEW === 'league' ? 'duelLeague' : DEV_DUEL_PREVIEW === 'invite' ? 'duelInvite' : DEV_DUEL_PREVIEW === 'invite-lobby' ? 'duelInviteLobby' : INITIAL_BATTLE_TOKEN ? 'duelInvite' : 'home');
   const [attempts, setAttempts] = useState(0);
   const [misses, setMisses] = useState(0);
   const [nearMisses, setNearMisses] = useState(0);
@@ -144,8 +146,8 @@ function App() {
   const [activeChallenge, setActiveChallenge] = useState<ChallengeTarget | null>(null);
   const [onlineCount, setOnlineCount] = useState(0);
   const [duelLobbyPhase, setDuelLobbyPhase] = useState<'connecting' | 'waiting' | 'ghost' | 'error'>('connecting');
-  const [activeDuel, setActiveDuel] = useState<DuelMatch | null>(() => DEV_DUEL_PREVIEW === 'ready' || DEV_DUEL_PREVIEW === 'result' ? DEV_DUEL_MATCH : null);
-  const [duelOutcome, setDuelOutcome] = useState<DuelOutcome | null>(() => DEV_DUEL_PREVIEW === 'result' ? { match: DEV_DUEL_MATCH, localElapsedMs: 4280, localAttempts: 2, localAccuracy: 91, reason: 'caught' } : null);
+  const [activeDuel, setActiveDuel] = useState<DuelMatch | null>(() => DEV_DUEL_PREVIEW === 'burst' ? DEV_DUEL_LOSS_MATCH : DEV_DUEL_PREVIEW === 'ready' || DEV_DUEL_PREVIEW === 'result' ? DEV_DUEL_MATCH : null);
+  const [duelOutcome, setDuelOutcome] = useState<DuelOutcome | null>(() => DEV_DUEL_PREVIEW === 'burst' ? { match: DEV_DUEL_LOSS_MATCH, localElapsedMs: null, localAttempts: 2, localAccuracy: 0, reason: 'opponent' } : DEV_DUEL_PREVIEW === 'result' ? { match: DEV_DUEL_MATCH, localElapsedMs: 4280, localAttempts: 2, localAccuracy: 91, reason: 'caught' } : null);
   const [duelCountdown, setDuelCountdown] = useState(3);
   const [duelProfile, setDuelProfile] = useState<DuelProfile | null>(() => DEV_DUEL_PREVIEW ? DEV_DUEL_PROFILE : null);
   const [duelLeague, setDuelLeague] = useState<DuelLeagueData | null>(() => DEV_DUEL_PREVIEW === 'league' ? DEV_DUEL_LEAGUE : null);
@@ -276,7 +278,7 @@ function App() {
       const previousScreen = screenRef.current;
       nestedHistoryRef.current = false;
       if (previousScreen === 'home') return;
-      if (previousScreen === 'duelLobby' || previousScreen === 'duelReady' || previousScreen === 'duelResult' || previousScreen === 'duelInvite' || previousScreen === 'duelInviteLobby' || (previousScreen === 'game' && activeDuelRef.current)) {
+      if (previousScreen === 'duelLobby' || previousScreen === 'duelReady' || previousScreen === 'duelBurst' || previousScreen === 'duelResult' || previousScreen === 'duelInvite' || previousScreen === 'duelInviteLobby' || (previousScreen === 'game' && activeDuelRef.current)) {
         void abandonDuel('home');
         track('native_back', { from: previousScreen });
         return;
@@ -603,7 +605,7 @@ function App() {
     clearInviteLocal();
     setActiveDuel(match);
     setDuelOutcome({ match, localElapsedMs, localAttempts, localAccuracy, reason });
-    setScreen('duelResult');
+    setScreen(!match.didWin && !match.isDraw && reason === 'opponent' ? 'duelBurst' : 'duelResult');
     void haptic(match.didWin ? 'success' : 'error');
     playSound(match.didWin ? 'catch' : 'miss', soundEnabled);
     track('duel_finish', { kind: match.opponentKind, source: match.matchSource, won: match.didWin === true, reason, level: match.level });
@@ -1018,7 +1020,7 @@ function App() {
   }
 
   const character = (caught = false) => <CatCharacter ref={caught ? undefined : headRef} caught={caught} reward={caught ? result?.reward : undefined} pose={pose} fur={difficulty.fur} accent={difficulty.accent} evil={difficulty.evil} attention={caught ? 'idle' : attention} />;
-  const isDuelFlowScreen = ['duelLobby', 'duelReady', 'duelResult', 'duelInvite', 'duelInviteLobby'].includes(screen) || (screen === 'game' && mode === 'duel');
+  const isDuelFlowScreen = ['duelLobby', 'duelReady', 'duelBurst', 'duelResult', 'duelInvite', 'duelInviteLobby'].includes(screen) || (screen === 'game' && mode === 'duel');
 
   return (
     <main className="app-shell">
@@ -1035,6 +1037,7 @@ function App() {
       {screen === 'duelInvite' && <DuelInviteAccept preview={duelInvitePreview} remainingSeconds={duelInviteRemaining} busy={duelInviteBusy} onAccept={() => void acceptFriendDuelInvite()} onDecline={() => { clearInviteLocal(); setScreen('home'); }} onCreate={() => void createInviteFromInviteScreen()} onRetry={() => void inspectDuelInvite()} />}
       {screen === 'duelInviteLobby' && <DuelInviteLobby invite={duelInvite} phase={duelInvitePhase} remainingSeconds={duelInviteRemaining} nickname={duelNickname} busy={duelInviteBusy} onShare={() => void shareCurrentDuelInvite()} onRandom={() => void switchInviteToRandom()} onCancel={() => void closeFriendDuelInvite()} onCreate={() => void createInviteFromInviteScreen()} />}
       {screen === 'duelReady' && activeDuel && <DuelReady match={activeDuel} nickname={duelNickname} countdown={duelCountdown} />}
+      {screen === 'duelBurst' && duelOutcome && <DuelFinishBurst outcome={duelOutcome} onDone={() => setScreen('duelResult')} />}
       {screen === 'duelResult' && duelOutcome && <DuelResult outcome={duelOutcome} profile={duelProfile} busy={duelInviteBusy} onRematch={() => void beginDuel()} onInvite={() => void startFriendDuelInvite(duelOutcome)} onHome={() => void abandonDuel('home')} />}
       {screen === 'duelLeague' && <DuelLeague league={duelLeague} profile={duelProfile} status={duelLeagueStatus} onPlay={() => void beginDuel()} onBack={() => setScreen('home')} onRetry={() => void openDuelLeague()} />}
 
