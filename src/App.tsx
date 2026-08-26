@@ -126,6 +126,7 @@ function App() {
   const [tauntKey, setTauntKey] = useState(0);
   const [aim, setAim] = useState<Aim | null>(null);
   const [remainingMs, setRemainingMs] = useState(() => getLevel(selectedLevel).roundMs);
+  const [duelElapsedMs, setDuelElapsedMs] = useState(0);
   const [feedback, setFeedback] = useState<{ key: number; text: string; near: boolean } | null>(null);
   const [result, setResult] = useState<GameResult | null>(null);
   const [lossResult, setLossResult] = useState<GameLoss | null>(null);
@@ -209,7 +210,6 @@ function App() {
   const duelGestureHideTimerRef = useRef(0);
   const duelGestureLastMoveRef = useRef(0);
   const duelGestureLastPointRef = useRef<{ x: number; y: number; at: number } | null>(null);
-  const duelSettlementTimerRef = useRef(0);
   const duelInvitePollRef = useRef(0);
   const duelInviteUnsubscribeRef = useRef<(() => void) | null>(null);
   const duelInviteRefreshRef = useRef(false);
@@ -340,10 +340,7 @@ function App() {
         aimRef.current = null;
         reactedToAimRef.current = false;
         setAim(null); setAttention('idle');
-        if ((screen === 'game' || screen === 'duelReady') && activeDuelRef.current && !duelResolvedRef.current) {
-          finishedRef.current = true;
-          void resolveDuelFailure('time');
-        } else if (screen === 'duelLobby') {
+        if (screen === 'duelLobby') {
           void abandonDuel('home');
         }
         if (wasPractice && screen === 'game') setShowGameGuide(true);
@@ -391,7 +388,12 @@ function App() {
       return;
     }
     const clock = window.setInterval(() => {
-      const left = Math.max(0, difficulty.roundMs - (Date.now() - startedAt.current));
+      const elapsedMs = Math.max(0, Date.now() - startedAt.current);
+      if (mode === 'duel') {
+        setDuelElapsedMs(elapsedMs);
+        return;
+      }
+      const left = Math.max(0, difficulty.roundMs - elapsedMs);
       setRemainingMs(left);
       const urgencySecond = urgencySecondFor(left);
       if (!finishedRef.current && urgencySecond && urgencySecondRef.current !== urgencySecond) {
@@ -401,7 +403,6 @@ function App() {
       }
       if (left === 0 && !finishedRef.current) {
         finishedRef.current = true;
-        if (mode === 'duel') { void resolveDuelFailure('time'); return; }
         setLossResult({ level: difficulty.id, levelName: difficulty.name, reason: 'time', elapsedMs: difficulty.roundMs, attempts: attemptsRef.current, nearMisses: nearMissesRef.current, closestDistance: closestDistanceRef.current, mode });
         track('game_loss', { level: difficulty.id, reason: 'time', mode });
         void haptic('error'); playSound('miss', soundEnabled);
@@ -762,7 +763,6 @@ function App() {
     duelGestureLastMoveRef.current = 0;
     window.clearTimeout(duelGestureHideTimerRef.current);
     setOpponentGesture(null);
-    window.clearTimeout(duelSettlementTimerRef.current);
   }
 
   function showOpponentGesture(gesture: DuelGesture) {
@@ -890,24 +890,6 @@ function App() {
     }
   }
 
-  async function resolveDuelFailure(reason: 'time' | 'misses') {
-    const match = activeDuelRef.current;
-    if (!match) return;
-    try {
-      const api = await duelApi();
-      const marked = await api.markDuelFailure(match.id);
-      if (marked.status === 'finished') { finishDuel(marked, marked.isDraw ? 'draw' : reason, null, attemptsRef.current, 0); return; }
-      setFeedback({ key: Date.now(), text: '상대 판정 확인 중…', near: true });
-      duelSettlementTimerRef.current = window.setTimeout(async () => {
-        if (duelResolvedRef.current) return;
-        try {
-          const settled = await api.settleDuelFailure(match.id);
-          finishDuel(settled, settled.isDraw ? 'draw' : reason, null, attemptsRef.current, 0);
-        } catch { finishDuel({ ...match, status: 'finished', isDraw: false, didWin: false }, 'connection', null, attemptsRef.current, 0); }
-      }, 760);
-    } catch { finishDuel({ ...match, status: 'finished', isDraw: false, didWin: false }, 'connection', null, attemptsRef.current, 0); }
-  }
-
   async function openDuelLeague() {
     if (!isDuelConfigured) { showNotice('온라인 대전 서버를 연결 중이에요.'); return; }
     setDuelLeagueStatus('loading'); setScreen('duelLeague');
@@ -933,7 +915,7 @@ function App() {
     setPhaseBehavior(getLevel(safeLevel).behavior); setPhaseKey((value) => value + 1);
     setTaunt(nextMode === 'duel' ? '상대 손도 뛰는 중.' : '잡을 수 있으면.'); setTauntKey((value) => value + 1); setAim(null); setFeedback(null); setAttention('idle'); setDodgeFx(null); setDodgeOpening(false);
     setShowGameGuide(isFirstPlay); setTutorialRetry(false);
-    setRemainingMs(getLevel(safeLevel).roundMs); setResult(null); setLossResult(null); setIsNewBest(false); setBestMessage(''); setScreen('game');
+    setRemainingMs(getLevel(safeLevel).roundMs); setDuelElapsedMs(0); setResult(null); setLossResult(null); setIsNewBest(false); setBestMessage(''); setScreen('game');
     setLeaderboardStatus('idle');
     track('game_start', { level: safeLevel, mode: nextMode, firstPlay: isFirstPlay });
     if (isFirstPlay) track('tutorial_impression', { level: safeLevel });
@@ -1154,9 +1136,8 @@ function App() {
     moveCatAway(event.clientX, event.clientY);
     void haptic(isNear ? 'wiggle' : 'basicWeak'); playSound(isNear ? 'near' : 'miss', soundEnabled);
     track('miss', { level: difficulty.id, near: isNear, mode, direction, distance: Math.ceil(missDistance) });
-    if (nextMisses >= difficulty.attemptsAllowed) {
+    if (mode !== 'duel' && nextMisses >= difficulty.attemptsAllowed) {
       finishedRef.current = true;
-      if (mode === 'duel') { void resolveDuelFailure('misses'); return; }
       setLossResult({ level: difficulty.id, levelName: difficulty.name, reason: 'misses', elapsedMs, attempts: nextAttempts, nearMisses: nearMissesRef.current, closestDistance: closestDistanceRef.current, mode });
       track('game_loss', { level: difficulty.id, reason: 'misses', mode });
       window.setTimeout(() => setScreen('loss'), 480);
@@ -1231,7 +1212,7 @@ function App() {
         <div className="home-copy"><span className="kicker">{incomingChallenge ? incomingChallenge.source === 'loss' ? '친구가 복수를 부탁함' : '피할 수 없는 기록 도착' : '잡으면 이기고, 놓치면 놀림받음'}</span><h1>{incomingChallenge ? <>친구 기록이,<br /><em>좀 건방지네?</em></> : <>이 고양이,<br /><em>한 번 잡아볼래?</em></>}</h1><p>{incomingChallenge ? '같은 고양이, 같은 규칙. 이번엔 당신 차례입니다.' : '꾹 누른 채 쫓아가세요. 머리에 닿았을 때 손을 떼면 성공.'}</p></div>
         <div className="home-character-wrap"><div className="speech-bubble">{incomingChallenge ? '남의 기록 깨는 게 제일 재밌지.' : '난 가만히 있을 생각 없는데.'}</div><CatCharacter pose={incomingChallenge ? 'taunt' : 'paddle'} evil={incomingChallenge ? getLevel(incomingChallenge.level).evil : 2} fur={incomingChallenge ? getLevel(incomingChallenge.level).fur : undefined} accent={incomingChallenge ? getLevel(incomingChallenge.level).accent : undefined} /><span className="floor-shadow" /></div>
         <div className="play-rule" aria-label="게임 방법"><span>☝</span><strong>꾹 누르고 쫓다가</strong><em>머리에서 손 떼기</em></div>
-        {incomingChallenge ? <><div className="challenge-card"><div><span>{incomingChallenge.source === 'loss' ? '친구의 복수 요청' : '친구 기록 도착'}</span><strong>Lv.{incomingChallenge.level} {getLevel(incomingChallenge.level).name}</strong><p>{incomingChallenge.elapsedMs ? `친구 기록 ${formatSeconds(incomingChallenge.elapsedMs)} · ${incomingChallenge.attempts}회. 더 빠르게 잡기` : '친구가 놓친 고양이, 대신 잡아주기'}</p></div><button onClick={() => startGame(incomingChallenge.level, 'challenge')}>기록 깨기</button></div><button className="text-button" onClick={() => setIncomingChallenge(null)}>일단 내 게임부터 하기</button></> : <><DuelHomeCard configured={isDuelConfigured} onlineCount={onlineCount} profile={duelProfile} nickname={duelNickname} onPlay={requestDuelMatch} onInvite={() => requestFriendDuelInvite()} onLeague={() => void openDuelLeague()} onEditName={requestBattleNameEdit} /><button className="level-select-button" onClick={() => setScreen('levels')}><span>{homeLevelLabel}</span><strong>Lv.{selectedDifficulty.id} {selectedDifficulty.name}</strong><i>10마리 보기 ›</i></button><div className="daily-card"><div><span>{daily.label}</span><strong>Lv.{daily.level.id} {daily.level.name}</strong><p>오늘은 모두 같은 움직임 · 오늘 최고 {dailyBest?.date === daily.date ? `${dailyBest.score.toLocaleString()}점` : '없음'}</p><small>{completedToday ? `${dailyStreak}일 연속 완료` : dailyStreak ? `오늘 잡으면 ${dailyStreak + 1}일 연속` : '오늘부터 연속 도전'} · 이번 주 내 최고 {weeklyBest ? `${weeklyBest.score.toLocaleString()}점` : '없음'}</small></div><button onClick={() => startGame(daily.level.id, 'daily')}>{completedToday ? '기록 단축' : '한 판 하기'}</button></div><button className="primary-button wobble-button" onClick={() => startGame()}>혼자 도전하기 <span>→</span></button><button className="rank-link" onClick={handleLeaderboard}>🏆 토스 전체 랭킹</button><p className="tiny-caption">모든 모드 15초 · 기회 5번 · 머리만 정답</p></>}
+        {incomingChallenge ? <><div className="challenge-card"><div><span>{incomingChallenge.source === 'loss' ? '친구의 복수 요청' : '친구 기록 도착'}</span><strong>Lv.{incomingChallenge.level} {getLevel(incomingChallenge.level).name}</strong><p>{incomingChallenge.elapsedMs ? `친구 기록 ${formatSeconds(incomingChallenge.elapsedMs)} · ${incomingChallenge.attempts}회. 더 빠르게 잡기` : '친구가 놓친 고양이, 대신 잡아주기'}</p></div><button onClick={() => startGame(incomingChallenge.level, 'challenge')}>기록 깨기</button></div><button className="text-button" onClick={() => setIncomingChallenge(null)}>일단 내 게임부터 하기</button></> : <><DuelHomeCard configured={isDuelConfigured} onlineCount={onlineCount} profile={duelProfile} nickname={duelNickname} onPlay={requestDuelMatch} onInvite={() => requestFriendDuelInvite()} onLeague={() => void openDuelLeague()} onEditName={requestBattleNameEdit} /><button className="level-select-button" onClick={() => setScreen('levels')}><span>{homeLevelLabel}</span><strong>Lv.{selectedDifficulty.id} {selectedDifficulty.name}</strong><i>10마리 보기 ›</i></button><div className="daily-card"><div><span>{daily.label}</span><strong>Lv.{daily.level.id} {daily.level.name}</strong><p>오늘은 모두 같은 움직임 · 오늘 최고 {dailyBest?.date === daily.date ? `${dailyBest.score.toLocaleString()}점` : '없음'}</p><small>{completedToday ? `${dailyStreak}일 연속 완료` : dailyStreak ? `오늘 잡으면 ${dailyStreak + 1}일 연속` : '오늘부터 연속 도전'} · 이번 주 내 최고 {weeklyBest ? `${weeklyBest.score.toLocaleString()}점` : '없음'}</small></div><button onClick={() => startGame(daily.level.id, 'daily')}>{completedToday ? '기록 단축' : '한 판 하기'}</button></div><button className="primary-button wobble-button" onClick={() => startGame()}>혼자 도전하기 <span>→</span></button><button className="rank-link" onClick={handleLeaderboard}>🏆 토스 전체 랭킹</button><p className="tiny-caption">혼자 모드 15초 · 기회 5번 · 온라인 대전은 무제한 선착순</p></>}
       </section>}
 
       {screen === 'duelLobby' && <DuelLobby nickname={duelNickname} onlineCount={onlineCount} phase={duelLobbyPhase} onCancel={() => void abandonDuel('home')} onPractice={() => { void abandonDuel('home').then(() => startGame()); }} onInvite={() => { void abandonDuel('home').then(() => requestFriendDuelInvite()); }} />}
@@ -1252,12 +1233,12 @@ function App() {
         <button className="text-button" onClick={() => setScreen('home')}>홈으로</button>
       </section>}
 
-      {screen === 'game' && <section className={`game-screen page-enter behavior-${phaseBehavior} phase-${phaseKey % 2} ${remainingMs <= 3000 ? 'is-urgent' : ''}`}>
-        {mode === 'duel' && activeDuel && <div className="duel-game-strip"><span><i />{activeDuel.matchSource === 'invite' ? `끝장 세션 ${activeDuel.sessionRound ?? 1}R` : '실시간 승부'}</span><strong>VS {activeDuel.opponentName}</strong><small>{activeDuelSession ? `${activeDuelSession.myScore}:${activeDuelSession.opponentScore} · 진 사람이 다음 냥이 선택` : '먼저 잡으면 즉시 승'}</small></div>}
+      {screen === 'game' && <section className={`game-screen page-enter behavior-${phaseBehavior} phase-${phaseKey % 2} ${mode !== 'duel' && remainingMs <= 3000 ? 'is-urgent' : ''}`}>
+        {mode === 'duel' && activeDuel && <div className="duel-game-strip"><span><i />{activeDuel.matchSource === 'invite' ? `끝장 세션 ${activeDuel.sessionRound ?? 1}R` : '실시간 승부'}</span><strong>VS {activeDuel.opponentName}</strong><small>{activeDuelSession ? `${activeDuelSession.myScore}:${activeDuelSession.opponentScore} · 진 사람이 다음 냥이 선택` : '무제한 · 먼저 잡으면 즉시 승'}</small></div>}
         <div className="game-hud"><div className="attempt-counter"><span>Lv.{difficulty.id} {difficulty.name}</span><strong>시도 {attempts}회</strong></div>
-          <div className="game-resources"><div className="chance-status"><span>기회 {difficulty.attemptsAllowed - misses}</span><div className="chance-lives" aria-label={`남은 기회 ${difficulty.attemptsAllowed - misses}`}>{Array.from({ length: difficulty.attemptsAllowed }, (_, index) => <i key={index} className={index < misses ? 'is-broken' : ''}>●</i>)}</div></div>
+          <div className="game-resources">{mode === 'duel' ? <div className="chance-status duel-unlimited"><span>기회 무제한</span><strong aria-label="기회 무제한">∞</strong></div> : <div className="chance-status"><span>기회 {difficulty.attemptsAllowed - misses}</span><div className="chance-lives" aria-label={`남은 기회 ${difficulty.attemptsAllowed - misses}`}>{Array.from({ length: difficulty.attemptsAllowed }, (_, index) => <i key={index} className={index < misses ? 'is-broken' : ''}>●</i>)}</div></div>}
           {(difficulty.hitsRequired ?? 1) > 1 && <div className="boss-status"><span>명중 {bossHits}/{difficulty.hitsRequired}</span><div className="boss-lives" aria-label={`남은 명중 ${(difficulty.hitsRequired ?? 1) - bossHits}`}>{Array.from({ length: difficulty.hitsRequired ?? 1 }, (_, index) => <i key={index} className={index < bossHits ? 'is-broken' : ''}>♛</i>)}</div></div>}</div>
-          <div className="round-status"><div><span>남은 시간</span><strong>{(remainingMs / 1000).toFixed(1)}s</strong></div><div className="fatigue-track" role="progressbar" aria-label="남은 시간" aria-valuemin={0} aria-valuemax={15} aria-valuenow={Math.ceil(remainingMs / 1000)}><i style={{ width: `${timeProgress}%` }} /></div></div>
+          <div className={`round-status ${mode === 'duel' ? 'is-duel-clock' : ''}`}><div><span>{mode === 'duel' ? '경과 시간' : '남은 시간'}</span><strong>{((mode === 'duel' ? duelElapsedMs : remainingMs) / 1000).toFixed(1)}s</strong></div>{mode === 'duel' ? <div className="fatigue-track duel-live-track" aria-label="선착순 진행 중"><i /></div> : <div className="fatigue-track" role="progressbar" aria-label="남은 시간" aria-valuemin={0} aria-valuemax={15} aria-valuenow={Math.ceil(remainingMs / 1000)}><i style={{ width: `${timeProgress}%` }} /></div>}</div>
         </div>
         <div ref={fieldRef} className={`game-field ${aim ? 'is-aiming' : ''} ${attention === 'danger' ? 'is-danger' : ''} ${result ? 'is-captured' : ''}`} onPointerDown={handleAimStart} onPointerMove={handleAimMove} onPointerUp={handleAimRelease} onPointerCancel={cancelAim} onLostPointerCapture={cancelAim} aria-label="고양이 잡기 구역">
           <div key={`phase-${phaseKey}`} className="phase-badge"><span>{mode === 'daily' ? '오늘의 움직임' : mode === 'challenge' ? '친구가 본 움직임' : mode === 'duel' ? '둘이 보는 움직임' : '지금은'}</span><strong>{BEHAVIOR_GUIDES[phaseBehavior].label}</strong><small>{BEHAVIOR_GUIDES[phaseBehavior].hint}</small></div>
@@ -1274,7 +1255,7 @@ function App() {
           {feedback && <div key={`feedback-${feedback.key}`} className={`catch-feedback ${feedback.near ? 'is-near' : ''}`} role="status" aria-live="polite">{feedback.text}</div>}
           {showGameGuide && <div className="gesture-coach" aria-label="첫 플레이 안내"><span>☝</span><strong>{tutorialRetry ? <>짧게 탭하면 안 잡혀요<br />꾹 누른 채 머리까지 쫓기</> : <>여기부터 꾹 누른 채<br />고양이 머리를 쫓아가세요</>}</strong><small>{tutorialRetry ? '다시 해도 시간·기회 차감 없음' : '첫 실패는 시간·기회 차감 없음'}</small></div>}
           <div className="field-dots" aria-hidden="true"><i /><i /><i /><i /></div>
-        </div><p className={`game-tip ${(difficulty.hitsRequired ?? 1) > 1 ? 'is-boss-tip' : ''}`}>{mode === 'duel' ? '상대와 같은 냥이 · 잡는 순간 서버가 선착순 판정' : (difficulty.hitsRequired ?? 1) > 1 ? `보스전 · 머리를 ${difficulty.hitsRequired}번 잡아야 승리 · 빗나가면 기회 차감` : '꾹 누르고 쫓다가 머리에서 떼기 · 놓치면 기회 1개 차감'}</p>
+        </div><p className={`game-tip ${(difficulty.hitsRequired ?? 1) > 1 ? 'is-boss-tip' : ''}`}>{mode === 'duel' ? '시간·기회 제한 없음 · 같은 냥이 · 먼저 잡는 즉시 승' : (difficulty.hitsRequired ?? 1) > 1 ? `보스전 · 머리를 ${difficulty.hitsRequired}번 잡아야 승리 · 빗나가면 기회 차감` : '꾹 누르고 쫓다가 머리에서 떼기 · 놓치면 기회 1개 차감'}</p>
       </section>}
 
       {screen === 'ending' && result && <section className="ending-screen page-enter">

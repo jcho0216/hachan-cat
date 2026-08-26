@@ -16,6 +16,6 @@ export function DuelReady({ match, nickname, countdown, session }: Props) {
     </div>
     <div className="duel-ready-cat"><CatCharacter pose="paddle" fur={level.fur} accent={level.accent} evil={level.evil} /></div>
     <strong className="duel-countdown">{countdown > 0 ? countdown : '잡아!'}</strong>
-    <p>15초 · 기회 5번 · 머리에서 먼저 떼기</p>
+    <p>시간·기회 무제한 · 먼저 잡는 즉시 승</p>
   </section>;
 }

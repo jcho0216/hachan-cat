@@ -4,12 +4,14 @@ import { strict as assert } from 'node:assert';
 const migrationDirectory = new URL('../supabase/migrations/', import.meta.url);
 const migration = readdirSync(migrationDirectory).filter((name) => name.endsWith('.sql')).sort()
   .map((name) => readFileSync(new URL(name, migrationDirectory), 'utf8')).join('\n');
+const firstCatchMigration = readFileSync(new URL('20260826080000_make_live_duels_first_catch_only.sql', migrationDirectory), 'utf8');
 const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
 const client = readFileSync(new URL('../src/duel/client.ts', import.meta.url), 'utf8');
 const invite = readFileSync(new URL('../src/duel/invite.ts', import.meta.url), 'utf8');
 const taunts = readFileSync(new URL('../src/duel/taunts.ts', import.meta.url), 'utf8');
 const homeCard = readFileSync(new URL('../src/components/DuelHomeCard.tsx', import.meta.url), 'utf8');
 const finishBurst = readFileSync(new URL('../src/components/DuelFinishBurst.tsx', import.meta.url), 'utf8');
+const duelReady = readFileSync(new URL('../src/components/DuelReady.tsx', import.meta.url), 'utf8');
 const nameSheet = readFileSync(new URL('../src/components/BattleNameSheet.tsx', import.meta.url), 'utf8');
 const catPicker = readFileSync(new URL('../src/components/DuelCatPicker.tsx', import.meta.url), 'utf8');
 const sessionRoom = readFileSync(new URL('../src/components/DuelSessionRoom.tsx', import.meta.url), 'utf8');
@@ -27,8 +29,11 @@ for (const rpc of ['duel_find_or_join', 'duel_claim', 'duel_forfeit', 'duel_mark
 }
 assert.match(migration, /pg_advisory_xact_lock/, 'matchmaking must be serialized');
 assert.match(migration, /for update;/, 'winner decision must lock the match row');
-assert.match(migration, /p_elapsed_ms not between 450 and 15000/, 'server catch window validation missing');
-assert.match(migration, /p_attempts not between 1 and 5/, 'server attempt validation missing');
+assert.match(firstCatchMigration, /FIRST_CATCH_ONLY/, 'multiplayer first-catch-only migration missing');
+assert.match(firstCatchMigration, /p_elapsed_ms < 450[^;]+p_attempts < 1/s, 'server must accept catches after any elapsed time and attempt count');
+assert.doesNotMatch(firstCatchMigration, /p_elapsed_ms not between 450 and 15000|p_attempts not between 1 and 5/, 'live catch validation must not retain the old upper limits');
+assert.match(firstCatchMigration, /older client cannot turn a[\s\S]+create or replace function public\.duel_mark_failure[\s\S]+create or replace function public\.duel_settle_failure/, 'legacy multiplayer failure calls must be harmless');
+assert.match(firstCatchMigration, /create trigger duel_matches_keep_live_match_open[\s\S]+starts_at \+ interval '24 hours'/, 'live matches must not retain the old 15-second expiry window');
 assert.match(migration, /'serverNow'/, 'server clock synchronization missing');
 assert.match(migration, /revoke execute on function public\.duel_record_profile[^;]+authenticated/, 'internal profile updater must not be client-callable');
 assert.match(migration, /alter publication supabase_realtime add table public\.duel_matches/, 'match realtime publication missing');
@@ -52,9 +57,12 @@ assert.match(migration, /interval '45 seconds'/, 'abandoned session detection mi
 assert.match(migration, /alter publication supabase_realtime add table public\.duel_sessions/, 'session realtime publication missing');
 assert.match(migration, /revoke execute on function public\.duel_start_ghost\(text\) from authenticated/, 'ghost creation must be disabled for all clients');
 
-for (const behavior of ['beginDuel', 'resolveDuelCatch', 'resolveDuelFailure', 'duelResult', 'duelLeague', 'startFriendDuelInvite', 'acceptFriendDuelInvite', 'watchDuelInvite', 'watchDuelSession', 'chooseNextSessionCat', 'leaveActiveDuelSession', 'switchInviteToRandom']) {
+for (const behavior of ['beginDuel', 'resolveDuelCatch', 'duelResult', 'duelLeague', 'startFriendDuelInvite', 'acceptFriendDuelInvite', 'watchDuelInvite', 'watchDuelSession', 'chooseNextSessionCat', 'leaveActiveDuelSession', 'switchInviteToRandom']) {
   assert.ok(app.includes(behavior), `${behavior} client flow missing`);
 }
+assert.doesNotMatch(app, /resolveDuelFailure/, 'multiplayer must never end because of misses, time, or visibility');
+assert.match(app, /if \(mode === 'duel'\) \{\s*setDuelElapsedMs\(elapsedMs\);\s*return;/, 'multiplayer clock must count up without ending the round');
+assert.match(app, /if \(mode !== 'duel' && nextMisses >= difficulty\.attemptsAllowed\)/, 'only non-multiplayer modes may end after five misses');
 assert.match(app, /scrollRestoration = 'manual'/, 'browser scroll restoration must not hide screen headers');
 assert.match(app, /useLayoutEffect\(\(\) => \{ window\.scrollTo\(0, 0\); \}, \[screen\]\)/, 'screen changes must reset scroll position before paint');
 assert.match(app, /requestAnimationFrame\(\(\) => window\.scrollTo\(0, 0\)\)/, 'late WebView scroll restoration must be corrected after paint');
@@ -68,10 +76,16 @@ assert.match(styles, /\.duel-cat-picker[^}]+(?:\{|;)\s*height: calc\(100dvh - va
 assert.match(styles, /\.battle-name-backdrop \{[^}]+width: min\(100%,520px\)[^}]+left: 50%[^}]+translate: -50% 0;/, 'battle-name bottom-sheet layer must stay within the app maximum width');
 assert.match(styles, /\.battle-name-backdrop \{[^}]+padding-inline: calc\(12px \+ var\(--ait-safe-left\)\) calc\(12px \+ var\(--ait-safe-right\)\);/, 'battle-name bottom sheet must preserve horizontal viewport gutters');
 assert.match(styles, /\.battle-name-sheet \{[^}]+width: 100%;[^}]+max-width: 496px;/, 'battle-name panel must fit inside the app shell gutters');
+assert.match(styles, /\.battle-name-sheet \{[^}]+min-width: 0;[^}]+overflow-x: hidden;/, 'battle-name panel must contain intrinsic child widths on iOS Safari');
+assert.match(styles, /\.battle-name-sheet form \{[^}]+width: 100%;[^}]+min-width: 0;[^}]+grid-template-columns: minmax\(0,1fr\);/, 'battle-name form must use a shrinkable grid track');
+assert.match(styles, /\.battle-name-sheet form > \* \{[^}]+min-width: 0;[^}]+max-width: 100%;/, 'every battle-name form child must stay inside the sheet');
+assert.match(styles, /\.game-screen \{[^}]+position: relative;/, 'duel overlay must anchor to the game screen');
+assert.match(styles, /\.duel-game-strip \{[^}]+position: absolute;/, 'duel status must not shrink the shared playfield');
 assert.match(app, /pending\.intent === 'accept'\) await acceptFriendDuelInviteNow\(savedName\)/, 'invite acceptance must resume after first-time name confirmation');
 assert.match(app, /pending\.intent === 'invite'\).*setScreen\('duelPicker'\)/, 'friend invite must resume at cat selection after first-time name confirmation');
 assert.match(nameSheet, /배틀에서 뭐라고 불러\?/, 'battle-name prompt copy missing');
 assert.match(nameSheet, /하찮게 다시/, 'one-tap random name fallback missing');
+assert.match(duelReady, /시간·기회 무제한/, 'duel ready screen must explain unlimited time and attempts');
 assert.match(nickname, /CONFIRMED_KEY/, 'legacy generated names must remain distinguishable from confirmed player names');
 for (const rpc of ['duel_find_or_join', 'duel_claim', 'duel_forfeit', 'duel_mark_failure', 'duel_settle_failure', 'duel_get_profile', 'duel_set_nickname', 'duel_weekly_league', 'duel_create_invite', 'duel_preview_invite', 'duel_accept_invite', 'duel_get_invite', 'duel_cancel_invite', 'duel_get_session', 'duel_get_active_session', 'duel_choose_session_cat', 'duel_leave_session']) {
   assert.ok(client.includes(`'${rpc}'`), `${rpc} client binding missing`);
@@ -96,10 +110,10 @@ assert.match(invite, /\?battle=\$\{encodeURIComponent\(token\)\}/, 'universal fr
 assert.match(invite, /intoss:\/\/hachan-cat\/battle/, 'Apps-in-Toss friend battle deep link missing');
 assert.match(invite, /sessionStorage/, 'active invite token must survive a WebView refresh');
 assert.match(spec, /고스트를 생성하지 않는다/, 'real-player-only matchmaking rule missing');
-assert.match(spec, /15초, 기회 5번/, 'shared round rule missing');
+assert.match(spec, /시간과 시도 횟수 제한 없이/, 'first-catch-only round rule missing');
 assert.match(spec, /익명 Auth ID와 게임용 랜덤 닉네임만/, 'data-minimization rule missing');
 assert.match(spec, /링크를 연 상대에게 방장 이름과 `도전 받기`/, 'explicit invite acceptance UX rule missing');
 assert.match(spec, /주간 리그와 랭크 연승에서 제외/, 'friend battle ranking integrity rule missing');
 assert.match(spec, /패자가 다음 고양이를 선택/, 'persistent session loser-choice rule missing');
 
-console.log('✓ real-player matchmaking, endless friend sessions, loser cat choice, timeout, reconnect, atomic score, league, RLS, and privacy contracts verified');
+console.log('✓ first-catch-only multiplayer, equal playfield, contained name sheet, matchmaking, sessions, atomic score, league, RLS, and privacy contracts verified');

@@ -209,13 +209,15 @@ try {
   const roundThreeSession = await rpc(friendHost.api, 'duel_choose_session_cat', { p_session_id: accepted.session.id, p_level: 2 });
   assert.deepEqual([roundThreeSession.round, roundThreeSession.selectedLevel], [3, 2]);
   await waitUntil(roundThreeSession.match.startsAt + 700, roundThreeSession.match.serverNow);
-  const friendDraw = await Promise.all([
+  const ignoredFriendFailures = await Promise.all([
     rpc(friendHost.api, 'duel_mark_failure', { p_match_id: roundThreeSession.match.id }),
     rpc(acceptedPlayer.api, 'duel_mark_failure', { p_match_id: roundThreeSession.match.id }),
   ]);
-  assert.ok(friendDraw.some((match) => match.status === 'finished' && match.isDraw), 'friend session draw must finish the round');
+  assert.ok(ignoredFriendFailures.every((match) => match.status === 'ready'), 'miss and timeout failure calls must not finish a friend round');
+  const friendLateWin = await rpc(friendHost.api, 'duel_claim', { p_match_id: roundThreeSession.match.id, p_elapsed_ms: 16_500, p_attempts: 6, p_accuracy: 88 });
+  assert.equal(friendLateWin.didWin, true, 'a catch after 15 seconds and five misses must still win');
   const afterRoundThree = await rpc(friendHost.api, 'duel_get_session', { p_session_id: accepted.session.id });
-  assert.deepEqual([afterRoundThree.round, afterRoundThree.myScore, afterRoundThree.opponentScore], [4, 1, 1]);
+  assert.deepEqual([afterRoundThree.round, afterRoundThree.myScore, afterRoundThree.opponentScore], [4, 2, 1]);
 
   const expiredChoice = await admin.from('duel_sessions').update({ choice_deadline: new Date(Date.now() - 1000).toISOString() }).eq('id', accepted.session.id);
   assert.ifError(expiredChoice.error);
@@ -242,13 +244,16 @@ try {
   const drawTwo = await player('draw-two');
   await rpc(drawOne.api, 'duel_find_or_join', { p_nickname: drawOne.name });
   const drawJoin = await rpc(drawTwo.api, 'duel_find_or_join', { p_nickname: drawTwo.name });
-  const drawResults = await Promise.all([
+  const ignoredFailures = await Promise.all([
     rpc(drawOne.api, 'duel_mark_failure', { p_match_id: drawJoin.match.id }),
     rpc(drawTwo.api, 'duel_mark_failure', { p_match_id: drawJoin.match.id }),
   ]);
-  assert.ok(drawResults.some((match) => match.status === 'finished' && match.isDraw === true), 'two failures must settle as a draw');
+  assert.ok(ignoredFailures.every((match) => match.status === 'ready'), 'two failures must not settle as a draw');
+  await waitUntil(drawJoin.match.startsAt + 700, drawJoin.match.serverNow);
+  const lateWinner = await rpc(drawOne.api, 'duel_claim', { p_match_id: drawJoin.match.id, p_elapsed_ms: 18_000, p_attempts: 8, p_accuracy: 87 });
+  assert.equal(lateWinner.didWin, true, 'first eventual catch must be the only winner condition');
   const drawProfiles = await Promise.all([rpc(drawOne.api, 'duel_get_profile'), rpc(drawTwo.api, 'duel_get_profile')]);
-  assert.deepEqual(drawProfiles.map((profile) => profile.losses), [1, 1]);
+  assert.deepEqual(drawProfiles.map((profile) => profile.losses), [0, 1]);
 
   const survivor = await player('survivor');
   const failed = await player('failed');
@@ -256,11 +261,13 @@ try {
   const survivalJoin = await rpc(failed.api, 'duel_find_or_join', { p_nickname: failed.name });
   const markedFailure = await rpc(failed.api, 'duel_mark_failure', { p_match_id: survivalJoin.match.id });
   assert.equal(markedFailure.status, 'ready');
-  await new Promise((resolve) => setTimeout(resolve, 700));
-  const survived = await rpc(survivor.api, 'duel_settle_failure', { p_match_id: survivalJoin.match.id });
-  assert.equal(survived.didWin, true, 'one-sided failure must award a survival win');
+  const ignoredSettlement = await rpc(survivor.api, 'duel_settle_failure', { p_match_id: survivalJoin.match.id });
+  assert.equal(ignoredSettlement.status, 'ready', 'legacy settlement must not award a survival win');
+  await waitUntil(survivalJoin.match.startsAt + 700, survivalJoin.match.serverNow);
+  const recoveredWinner = await rpc(failed.api, 'duel_claim', { p_match_id: survivalJoin.match.id, p_elapsed_ms: 22_000, p_attempts: 9, p_accuracy: 86 });
+  assert.equal(recoveredWinner.didWin, true, 'a player may keep trying and win after any number of failures');
 
-  console.log('✓ remote auth, real-only random matching, named invites, selected first cat, endless session, three rounds, loser choice, timeout fallback, session Realtime, exit detection, isolated friend records, atomic winner, draw, profile, and live-only league verified');
+  console.log('✓ remote auth, real-only matching, endless friend sessions, first-catch-only rounds, unlimited retries, timeout fallback, Realtime, profiles, and league isolation verified');
 } finally {
   if (createdUsers.length) {
     const ids = `(${createdUsers.join(',')})`;
