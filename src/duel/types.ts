@@ -19,6 +19,10 @@ export type DuelMatch = {
   winnerElapsedMs: number | null;
   winnerAttempts: number | null;
   winnerAccuracy: number | null;
+  myHits: number;
+  opponentHits: number;
+  resultKind: 'catch' | 'hits' | 'draw' | null;
+  roundDeadline: number | null;
   isDraw: boolean;
   didWin: boolean | null;
 };

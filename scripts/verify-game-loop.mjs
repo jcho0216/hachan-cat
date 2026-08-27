@@ -13,10 +13,27 @@ import { GAME_CENTER_MIN_VERSION, isLeaderboardVersionSupported, normalizeLeader
 import { safeStorageGet, safeStorageSet } from '../src/storage.ts';
 import { analyticsKindFor } from '../src/telemetry.ts';
 import { getResultPrimaryAction } from '../src/resultFlow.ts';
+import { LEVELS } from '../src/levels.ts';
 
 const result = { level: 7, elapsedMs: 3240, attempts: 2, accuracy: 91, grade: 'A', levelName: '깜빡냥', nearMisses: 1, verdict: '', reward: {}, mode: 'challenge' };
 const catchLink = createCatchChallengeDeepLink(result);
 const lossLink = createLossChallengeDeepLink({ level: 9, levelName: '철벽냥', reason: 'misses', elapsedMs: 8000, attempts: 5, nearMisses: 2, closestDistance: 30 });
+
+const previousHighLevelTuning = [
+  { moveDelay: 420, dodgeDelay: 265, hitRadius: 59 },
+  { moveDelay: 380, dodgeDelay: 235, hitRadius: 57 },
+  { moveDelay: 340, dodgeDelay: 205, hitRadius: 54 },
+  { moveDelay: 310, dodgeDelay: 185, hitRadius: 52 },
+  { moveDelay: 280, dodgeDelay: 165, hitRadius: 49 },
+  { moveDelay: 245, dodgeDelay: 145, hitRadius: 46 },
+];
+LEVELS.slice(4).forEach((level, index) => {
+  const previous = previousHighLevelTuning[index];
+  for (const key of ['moveDelay', 'dodgeDelay', 'hitRadius']) {
+    const ratio = level[key] / previous[key];
+    assert.ok(ratio >= 1.04 && ratio <= 1.06, `Lv.${level.id} ${key}는 약 5% 완화되어야 합니다.`);
+  }
+});
 
 assert.ok(catchLink.includes('level=7') && catchLink.includes('time=3240') && catchLink.includes('attempts=2'), '잡은 기록이 딥링크에 포함되어야 합니다.');
 assert.ok(lossLink.includes('level=9') && lossLink.includes('from=loss'), '패배 공유는 같은 고양이 복수전으로 이어져야 합니다.');

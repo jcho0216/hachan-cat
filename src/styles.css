@@ -47,6 +47,7 @@ button:focus-visible { outline: 4px solid #3b82f6; outline-offset: 3px; }
 .header-actions { display: flex; align-items: center; gap: 8px; }
 .sound-toggle { width: 44px; height: 44px; border: 2px solid var(--ink); border-radius: 50%; background: #fff; box-shadow: 2px 2px 0 var(--ink); font: 900 17px 'Gaegu',cursive; }
 .wordmark { font: 700 31px/1 'Gaegu', cursive; letter-spacing: -2px; padding: 4px; transform: rotate(-3deg); }
+.wordmark:disabled { cursor: default; opacity: 1; }
 .wordmark span { color: var(--coral); }
 .collection-link { font-size: 14px; font-weight: 700; padding: 8px 0 8px 12px; }
 .collection-link strong { display: inline-grid; place-items: center; min-width: 24px; height: 24px; margin-left: 5px; border-radius: 99px; color: #fff; background: var(--ink); font-size: 12px; }
@@ -60,6 +61,27 @@ button:focus-visible { outline: 4px solid #3b82f6; outline-offset: 3px; }
 .home-copy h1 em { color: var(--coral); font-style: normal; position: relative; }
 .home-copy h1 em::after { content: ''; position: absolute; left: 2px; right: 0; bottom: -5px; height: 8px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='8' viewBox='0 0 160 8'%3E%3Cpath d='M2 5c38-8 71 3 104-1 18-2 34-2 52 1' fill='none' stroke='%23ff6757' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E") center/100% 100% no-repeat; }
 .home-copy p { margin: 14px 0 0; color: #716a62; font-size: 15px; }
+.tutorial-screen { height: calc(100dvh - var(--header-height)); padding: 17px 24px calc(22px + var(--ait-safe-bottom)); display: flex; flex-direction: column; overflow-y: auto; }
+.tutorial-heading > div { display: flex; align-items: center; justify-content: space-between; }
+.tutorial-progress { color: #766f66; font-size: 12px; font-weight: 900; letter-spacing: 1px; }
+.tutorial-heading h1 { margin: 18px 0 7px; font-size: clamp(38px,11vw,52px); line-height: 1.02; letter-spacing: -3px; }
+.tutorial-heading h1 em { color: var(--coral); font-style: normal; }
+.tutorial-heading p { margin: 0; color: #716a62; font-size: 14px; line-height: 1.45; }
+.tutorial-card { margin: 20px 0 15px; padding: 14px; border: 3px solid var(--ink); border-radius: 24px; background: #fff; box-shadow: 6px 7px 0 var(--ink); }
+.tutorial-demo { height: 185px; position: relative; display: grid; place-items: center; overflow: hidden; border-radius: 15px; background: radial-gradient(circle at 50% 52%,#fff4bd 0 29%,#f4efe6 30% 100%); }
+.tutorial-demo .cat-character { width: 120px; z-index: 2; }
+.tutorial-hold,.tutorial-release { position: absolute; z-index: 4; padding: 6px 9px; border: 2px solid var(--ink); border-radius: 99px; box-shadow: 2px 2px 0 var(--ink); font-size: 11px; font-weight: 900; }
+.tutorial-hold { left: 10px; bottom: 13px; background: #fff; }
+.tutorial-release { right: 9px; top: 10px; background: var(--yellow); }
+.tutorial-path { position: absolute; left: 54px; bottom: 44px; width: 126px; height: 83px; border-top: 3px dashed var(--coral); border-right: 3px dashed var(--coral); border-radius: 0 80px 0 0; rotate: -12deg; z-index: 1; }
+.tutorial-finger { position: absolute; left: 42px; bottom: 34px; z-index: 5; font-size: 34px; rotate: -14deg; filter: drop-shadow(2px 3px 0 rgba(32,33,36,.25)); animation: tutorialFollow 1.3s ease-in-out infinite alternate; }
+.tutorial-instruction { padding: 12px 4px 2px; text-align: center; }
+.tutorial-instruction strong,.tutorial-instruction span { display: block; }
+.tutorial-instruction strong { font-size: 15px; }
+.tutorial-instruction span { margin-top: 4px; color: #756e65; font-size: 12px; }
+.tutorial-next { margin-top: auto; }
+.tutorial-once { margin: 12px 0 0; color: #8a8278; text-align: center; font-size: 12px; }
+@keyframes tutorialFollow { to { translate: 115px -72px; rotate: 4deg; } }
 .home-character-wrap { flex: 1; min-height: 205px; display: grid; place-items: center; position: relative; padding-top: 16px; }
 .home-character-wrap .cat-character { width: 158px; z-index: 2; }
 .speech-bubble, .taunt-bubble { position: absolute; background: #fff; border: 3px solid var(--ink); box-shadow: 4px 5px 0 var(--ink); font: 700 17px/1.2 'Gaegu', cursive; border-radius: 18px; padding: 10px 14px; z-index: 3; }
@@ -148,8 +170,10 @@ button:focus-visible { outline: 4px solid #3b82f6; outline-offset: 3px; }
 .game-screen { height: calc(100dvh - var(--header-height)); display: flex; flex-direction: column; position: relative; }
 .game-hud { min-height: 76px; padding: 4px 20px 8px; display: grid; grid-template-columns: minmax(82px,1fr) auto minmax(112px,1fr); align-items: center; gap: 12px; }
 .attempt-counter { display: flex; align-items: baseline; gap: 8px; }
-.attempt-counter { flex-direction: column; gap: 1px; }.attempt-counter strong { font-size: 24px; }
+.attempt-counter { flex-direction: column; gap: 1px; }.attempt-counter strong { font-size: 24px; white-space: nowrap; }
 .game-resources { display: flex; align-items: center; gap: 10px; }
+.game-screen.is-timed-boss .game-hud { padding-inline: 12px; grid-template-columns: minmax(76px,.85fr) auto minmax(104px,1fr); gap: 8px; }
+.game-screen.is-timed-boss .game-resources { gap: 6px; }
 .chance-status, .boss-status { display: flex; flex-direction: column; align-items: center; gap: 3px; }
 .chance-status > span, .boss-status > span { color: #716960; font-size: 8px; font-weight: 900; white-space: nowrap; }
 .boss-lives { display: flex; gap: 3px; color: var(--coral); font-size: 16px; }.boss-lives i { font-style: normal; transition: .25s; }.boss-lives i.is-broken { opacity: .2; transform: rotate(25deg) translateY(3px); }
@@ -420,7 +444,77 @@ button:disabled { opacity: .6; cursor: wait; }
 .duel-league-screen { height: calc(100dvh - var(--header-height)); padding: 18px 22px calc(30px + var(--ait-safe-bottom)); overflow-y: auto; }.duel-league-heading h1 { margin: 17px 0 3px; font-size: 36px; letter-spacing: -2px; }.duel-league-heading p { margin: 0; color: #756e65; font-size: 11px; }.duel-profile-strip { display: grid; grid-template-columns: repeat(3,1fr); margin: 21px 0 15px; padding: 11px 4px; border: 2px solid var(--ink); border-radius: 16px; background: var(--ink); color: #fff; box-shadow: 0 4px 0 var(--coral); }.duel-profile-strip div { min-width: 0; padding: 0 5px; text-align: center; }.duel-profile-strip div + div { border-left: 1px solid #555; }.duel-profile-strip small,.duel-profile-strip strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.duel-profile-strip small { color: #aaa; font-size: 7px; }.duel-profile-strip strong { margin-top: 4px; color: var(--yellow); font-size: 12px; }
 .duel-league-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }.duel-league-list li { min-height: 55px; padding: 8px 11px; display: grid; grid-template-columns: 37px 1fr auto; align-items: center; gap: 7px; border: 2px solid var(--ink); border-radius: 14px; background: #fff; box-shadow: 2px 3px 0 var(--ink); }.duel-league-list li.is-me { background: #fff1ad; border-color: var(--coral); box-shadow: 2px 3px 0 var(--coral); }.duel-league-list li > b { text-align: center; font-size: 19px; }.duel-league-list li > span { min-width: 0; }.duel-league-list li span strong,.duel-league-list li span small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.duel-league-list li span strong { font-size: 12px; }.duel-league-list li span small { margin-top: 3px; color: #837b72; font-size: 8px; }.duel-league-list li em { color: var(--coral); font-size: 15px; font-style: normal; font-weight: 950; }.duel-league-empty { min-height: 230px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; border: 2px dashed #b9b1a7; border-radius: 18px; background: rgba(255,255,255,.6); text-align: center; }.duel-league-empty i { width: 23px; height: 23px; margin-bottom: 14px; border: 3px solid #ddd5ca; border-top-color: var(--coral); border-radius: 50%; animation: windmill .8s linear infinite; }.duel-league-empty strong { font-size: 17px; }.duel-league-empty p { margin: 5px 0 13px; color: #817970; font-size: 10px; }.duel-league-empty .secondary-button { width: 100%; }.duel-league-actions { display: grid; gap: 7px; margin-top: 18px; }
 
+/* 작은 설명도 실제 휴대폰에서 읽히도록 10~13px를 가독성 하한으로 둔다. */
+.play-rule,.tiny-caption { font-size: 12px; }
+.daily-card span,.daily-card p,.challenge-card span,.challenge-card p { font-size: 11px; line-height: 1.35; }
+.daily-card small { font-size: 10px; white-space: normal; line-height: 1.3; }
+.daily-card button,.challenge-card button { font-size: 12px; }
+.level-select-button span,.level-select-button i { font-size: 12px; }
+.level-card > span,.level-card p { font-size: 11px; }
+.level-card i,.level-card small { font-size: 10px; }
+.chance-status > span,.boss-status > span,.phase-badge span,.phase-badge small { font-size: 10px; }
+.chance-lives { font-size: 11px; }
+.opponent-gesture > strong { font-size: 10px; }
+.gesture-coach small { font-size: 11px; }
+.reward-card__description { font-size: 13px; }
+.score-row span,.reward-card footer { font-size: 10px; }
+.collection-tabs strong { font-size: 11px; }
+.collection-card p { font-size: 11px; }
+.collection-level,.collection-best { font-size: 10px; }
+.daily-score small,.leaderboard-state { font-size: 11px; }
+.app-toast { font-size: 13px; }
+
+.duel-home-card > header strong { font-size: 12px; }
+.duel-home-card > header button { font-size: 10px; }
+.duel-mode-card > span { font-size: 10px; }
+.duel-mode-card > small { font-size: 10px; line-height: 1.35; }
+.duel-mode-card > em { font-size: 11px; }
+.duel-home-card > footer,.duel-live { font-size: 10px; }
+.battle-name-kicker { font-size: 9px; }
+.battle-name-sheet > p { font-size: 12px; }
+.battle-name-sheet label { font-size: 11px; }
+.battle-name-input > span,.battle-name-help,.battle-name-help button,.battle-name-preview small { font-size: 10px; }
+.duel-you small,.duel-versus small { font-size: 10px; }
+.duel-kind { font-size: 12px; }
+.duel-ready-screen > p { font-size: 13px; }
+.duel-game-strip span,.duel-game-strip small { font-size: 10px; }
+.duel-game-strip strong { font-size: 12px; }
+.duel-burst-speed,.duel-finish-burst > p { font-size: 12px; }
+.duel-finish-burst blockquote small,.duel-finish-burst > em { font-size: 10px; }
+.duel-result-screen > p { font-size: 13px; }
+.duel-result-card blockquote small,.duel-result-card span { font-size: 10px; }
+.duel-invite-ticket { font-size: 11px; }
+.duel-invite-accept > p,.duel-invite-lobby > p { font-size: 13px; }
+.duel-invite-versus small,.duel-invite-expiry span,.duel-invite-clock span,.duel-invite-clock small { font-size: 10px; }
+.duel-rule-chips span,.duel-invite-steps span,.duel-share-hint { font-size: 10px; }
+.duel-cat-picker > p,.duel-session-room > p { font-size: 13px; }
+.duel-cat-grid span { font-size: 9px; }
+.duel-cat-grid small { font-size: 10px; }
+.duel-picker-busy { font-size: 11px; }
+.duel-session-round { font-size: 10px; }
+.duel-session-last small { font-size: 10px; }
+.duel-session-last span,.duel-session-wait small { font-size: 11px; }
+.duel-session-picker-head strong { font-size: 12px; }
+.duel-session-cat-grid span { font-size: 8px; }
+.duel-session-cat-grid strong { font-size: 11px; }
+.duel-session-taunt-received small { font-size: 10px; }
+.duel-session-taunt-picker > div:first-child small { font-size: 9px; }
+.duel-session-taunt-picker button { font-size: 11px; }
+.duel-league-heading p { font-size: 13px; }
+.duel-profile-strip small,.duel-league-list li span small { font-size: 10px; }
+.duel-league-empty p { font-size: 12px; }
+
 @media (max-height: 720px) {
+  .tutorial-screen { padding-top: 8px; padding-bottom: calc(12px + var(--ait-safe-bottom)); }
+  .tutorial-heading h1 { margin: 8px 0 3px; font-size: 34px; }
+  .tutorial-heading p { font-size: 12px; }
+  .tutorial-card { margin: 10px 0; padding: 10px; }
+  .tutorial-demo { height: 130px; }
+  .tutorial-demo .cat-character { width: 92px; }
+  .tutorial-instruction { padding-top: 8px; }
+  .tutorial-instruction strong { font-size: 13px; }
+  .tutorial-instruction span { font-size: 11px; }
+  .tutorial-once { margin-top: 8px; font-size: 11px; }
   .home-copy h1 { font-size: 36px; margin: 10px 0 6px; }
   .home-copy p { margin-top: 8px; font-size: 12px; }
   .home-character-wrap .cat-character { width: 132px; }
@@ -440,7 +534,7 @@ button:disabled { opacity: .6; cursor: wait; }
   .chance-lives { gap: 2px; font-size: 8px; }
   .boss-lives { gap: 1px; font-size: 14px; }
   .round-status strong { font-size: 17px; }
-  .game-tip { padding-inline: 10px; font-size: 10px; }
+  .game-tip { padding-inline: 10px; font-size: 11px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -23,13 +23,13 @@ export function DuelHomeCard({ configured, onlineCount, profile, nickname, onPla
       <button className="duel-mode-card is-random" onClick={onPlay} disabled={!configured}>
         <span>⚡ 실시간 · 5승 선착순</span>
         <strong>바로 붙기</strong>
-        <small>한 판 무제한 · 패자가 다음 냥이</small>
+        <small>일반 무제한 · 보스 60초 · 패자가 선택</small>
         <em>지금 대결 <b>→</b></em>
       </button>
       <button className="duel-mode-card is-friend" onClick={onInvite} disabled={!configured}>
         <span>1:1 · 5승 선착순</span>
         <strong>친구 지목전</strong>
-        <small>한 판은 무제한 · 패자가 다음 냥이</small>
+        <small>일반 무제한 · 보스 60초 · 패자가 선택</small>
         <em>시비 걸기 <b>↗</b></em>
       </button>
     </div>

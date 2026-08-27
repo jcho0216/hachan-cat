@@ -7,6 +7,7 @@ const migration = readdirSync(migrationDirectory).filter((name) => name.endsWith
 const firstCatchMigration = readFileSync(new URL('20260826080000_make_live_duels_first_catch_only.sql', migrationDirectory), 'utf8');
 const firstToFiveMigration = readFileSync(new URL('20260826090000_make_friend_duels_first_to_five.sql', migrationDirectory), 'utf8');
 const randomSeriesMigration = readFileSync(new URL('20260826100000_make_random_duels_first_to_five_with_taunts.sql', migrationDirectory), 'utf8');
+const bossTiebreakMigration = readFileSync(new URL('20260827110000_cap_boss_duels_by_hits.sql', migrationDirectory), 'utf8');
 const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
 const client = readFileSync(new URL('../src/duel/client.ts', import.meta.url), 'utf8');
 const invite = readFileSync(new URL('../src/duel/invite.ts', import.meta.url), 'utf8');
@@ -28,7 +29,7 @@ for (const table of ['duel_queue', 'duel_matches', 'duel_runs', 'duel_profiles',
   assert.match(migration, new RegExp(`create table if not exists public\\.${table}`), `${table} schema missing`);
   assert.match(migration, new RegExp(`alter table public\\.${table} enable row level security`), `${table} RLS missing`);
 }
-for (const rpc of ['duel_find_or_join', 'duel_claim', 'duel_forfeit', 'duel_mark_failure', 'duel_settle_failure', 'duel_get_profile', 'duel_set_nickname', 'duel_weekly_league', 'duel_create_invite', 'duel_preview_invite', 'duel_accept_invite', 'duel_get_invite', 'duel_cancel_invite', 'duel_get_session', 'duel_get_active_session', 'duel_choose_session_cat', 'duel_send_session_taunt', 'duel_leave_session']) {
+for (const rpc of ['duel_find_or_join', 'duel_claim', 'duel_report_boss_hit', 'duel_settle_boss_round', 'duel_forfeit', 'duel_mark_failure', 'duel_settle_failure', 'duel_get_profile', 'duel_set_nickname', 'duel_weekly_league', 'duel_create_invite', 'duel_preview_invite', 'duel_accept_invite', 'duel_get_invite', 'duel_cancel_invite', 'duel_get_session', 'duel_get_active_session', 'duel_choose_session_cat', 'duel_send_session_taunt', 'duel_leave_session']) {
   assert.match(migration, new RegExp(`create or replace function public\\.${rpc}`), `${rpc} missing`);
   assert.match(migration, new RegExp(`grant execute on function public\\.${rpc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`), `${rpc} authenticated grant missing`);
 }
@@ -49,6 +50,11 @@ assert.match(randomSeriesMigration, /'live', 'random', new_session\.id, 1/, 'the
 assert.match(randomSeriesMigration, /'live', room\.session_source, room\.id, room\.round_number/, 'later rounds must preserve the session match source');
 assert.match(randomSeriesMigration, /room\.last_winner_id is distinct from me[\s\S]+raise exception 'TAUNT_FORBIDDEN'/, 'only the previous round winner may send a waiting taunt');
 assert.match(randomSeriesMigration, /p_taunt_id is null or p_taunt_id not between 0 and 5/, 'the server must accept predefined taunt IDs only');
+assert.match(bossTiebreakMigration, /BOSS_HIT_TIEBREAK/, 'multi-hit duel tiebreak migration missing');
+assert.match(bossTiebreakMigration, /starts_at \+ interval '60 seconds 800 milliseconds'/, 'boss settlement must use the authoritative 60-second deadline plus network grace');
+assert.match(bossTiebreakMigration, /greatest\(player_one_hits, p_hits\)[\s\S]+greatest\(player_two_hits, p_hits\)/, 'boss hit progress must only move forward');
+assert.match(bossTiebreakMigration, /player_one_hits > current_match\.player_two_hits[\s\S]+player_two_hits > current_match\.player_one_hits/, 'boss settlement must compare both players atomically');
+assert.match(bossTiebreakMigration, /result_kind = case when winning_player is null then 'draw' else 'hits' end/, 'equal boss hits must settle as a draw without inventing a winner');
 assert.match(migration, /'serverNow'/, 'server clock synchronization missing');
 assert.match(migration, /revoke execute on function public\.duel_record_profile[^;]+authenticated/, 'internal profile updater must not be client-callable');
 assert.match(migration, /alter publication supabase_realtime add table public\.duel_matches/, 'match realtime publication missing');
@@ -75,8 +81,10 @@ assert.match(migration, /revoke execute on function public\.duel_start_ghost\(te
 for (const behavior of ['beginDuel', 'resolveDuelCatch', 'duelResult', 'duelLeague', 'startFriendDuelInvite', 'acceptFriendDuelInvite', 'watchDuelInvite', 'watchDuelSession', 'chooseNextSessionCat', 'sendWaitingDuelTaunt', 'leaveActiveDuelSession', 'switchInviteToRandom']) {
   assert.ok(app.includes(behavior), `${behavior} client flow missing`);
 }
-assert.doesNotMatch(app, /resolveDuelFailure/, 'multiplayer must never end because of misses, time, or visibility');
-assert.match(app, /if \(mode === 'duel'\) \{\s*setDuelElapsedMs\(elapsedMs\);\s*return;/, 'multiplayer clock must count up without ending the round');
+assert.doesNotMatch(app, /resolveDuelFailure/, 'multiplayer must never end because of misses');
+assert.match(app, /if \(!isTimedBossDuel\(difficulty\.hitsRequired\)\) \{\s*setDuelElapsedMs\(elapsedMs\);\s*return;/, 'ordinary multiplayer rounds must keep counting up without a timeout');
+assert.match(app, /left === 0 && !finishedRef\.current[\s\S]+resolveDuelBossTimeout/, 'only timed boss duels should settle at 60 seconds');
+assert.match(app, /restoredBossHits = nextMode === 'duel' \? activeDuelRef\.current\?\.myHits \?\? 0 : 0/, 'a refreshed boss duel must restore server-confirmed local hit progress');
 assert.match(app, /if \(mode !== 'duel' && nextMisses >= difficulty\.attemptsAllowed\)/, 'only non-multiplayer modes may end after five misses');
 assert.match(app, /scrollRestoration = 'manual'/, 'browser scroll restoration must not hide screen headers');
 assert.match(app, /useLayoutEffect\(\(\) => \{ window\.scrollTo\(0, 0\); \}, \[screen\]\)/, 'screen changes must reset scroll position before paint');
@@ -110,8 +118,9 @@ for (const source of [homeCard, duelReady, inviteAccept, inviteLobby, sessionRoo
 }
 assert.doesNotMatch(duelResult, /기회를 먼저 다 씀|15초를 먼저 다 씀|친구 끝장 세션/, 'duel result must not expose obsolete five-attempt or 15-second loss copy');
 assert.match(app, /한 판 무제한 · 먼저 잡으면 1승 · 먼저 5승하면 끝/, 'live friend round HUD must explain unlimited first-catch rounds and the five-win target');
+assert.match(app, /60초 동안 더 많이 명중/, 'boss duel HUD must explain the 60-second hit-count rule');
 assert.match(nickname, /CONFIRMED_KEY/, 'legacy generated names must remain distinguishable from confirmed player names');
-for (const rpc of ['duel_find_or_join', 'duel_claim', 'duel_forfeit', 'duel_mark_failure', 'duel_settle_failure', 'duel_get_profile', 'duel_set_nickname', 'duel_weekly_league', 'duel_create_invite', 'duel_preview_invite', 'duel_accept_invite', 'duel_get_invite', 'duel_cancel_invite', 'duel_get_session', 'duel_get_active_session', 'duel_choose_session_cat', 'duel_send_session_taunt', 'duel_leave_session']) {
+for (const rpc of ['duel_find_or_join', 'duel_claim', 'duel_report_boss_hit', 'duel_settle_boss_round', 'duel_forfeit', 'duel_mark_failure', 'duel_settle_failure', 'duel_get_profile', 'duel_set_nickname', 'duel_weekly_league', 'duel_create_invite', 'duel_preview_invite', 'duel_accept_invite', 'duel_get_invite', 'duel_cancel_invite', 'duel_get_session', 'duel_get_active_session', 'duel_choose_session_cat', 'duel_send_session_taunt', 'duel_leave_session']) {
   assert.ok(client.includes(`'${rpc}'`), `${rpc} client binding missing`);
 }
 assert.doesNotMatch(app, /startGhostDuel|finishGhostDuel/, 'player flow must never create or race a ghost');
@@ -139,10 +148,11 @@ assert.match(invite, /\?battle=\$\{encodeURIComponent\(token\)\}/, 'universal fr
 assert.match(invite, /intoss:\/\/hachan-cat\/battle/, 'Apps-in-Toss friend battle deep link missing');
 assert.match(invite, /sessionStorage/, 'active invite token must survive a WebView refresh');
 assert.match(spec, /고스트를 생성하지 않는다/, 'real-player-only matchmaking rule missing');
-assert.match(spec, /시간과 시도 횟수 제한 없이/, 'first-catch-only round rule missing');
+assert.match(spec, /일반 고양이는 시간과 시도 횟수 제한 없이/, 'ordinary first-catch-only round rule missing');
+assert.match(spec, /여러 번 포획이 필요한 보스/, 'timed boss hit-count rule missing');
 assert.match(spec, /익명 Auth ID와 게임용 랜덤 닉네임만/, 'data-minimization rule missing');
 assert.match(spec, /링크를 연 상대에게 방장 이름과 `도전 받기`/, 'explicit invite acceptance UX rule missing');
 assert.match(spec, /주간 리그와 랭크 연승에서 제외/, 'friend battle ranking integrity rule missing');
 assert.match(spec, /패자가 다음 고양이를 선택/, 'persistent session loser-choice rule missing');
 
-console.log('✓ unlimited first-catch rounds, first-to-five real-time and friend series, winner-only waiting taunts, winner card, equal playfield, contained name sheet, matchmaking, atomic score, league, RLS, and privacy contracts verified');
+console.log('✓ unlimited ordinary rounds, 60-second boss hit tiebreaks, first-to-five series, waiting taunts, winner card, equal playfield, contained name sheet, matchmaking, atomic score, league, RLS, and privacy contracts verified');

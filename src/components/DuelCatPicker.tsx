@@ -20,7 +20,7 @@ export function DuelCatPicker({ title = '첫 판 냥이 골라.', detail = '이 
         <span>Lv.{level.id}</span>
         <CatCharacter pose={level.poses[0]} fur={level.fur} accent={level.accent} evil={level.evil} />
         <strong>{level.name}</strong>
-        <small>{level.chapter}</small>
+        <small>{(level.hitsRequired ?? 1) > 1 ? '60초 명중전' : level.chapter}</small>
       </button>)}
     </div>
     {busy && <div className="duel-picker-busy"><i /><i /><i /><span>고양이 데려오는 중…</span></div>}

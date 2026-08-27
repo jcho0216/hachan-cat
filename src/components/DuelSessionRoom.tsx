@@ -23,6 +23,7 @@ export function DuelSessionRoom({ session, outcome, nickname, busy, onChoose, on
   const opponentName = withNim(session.opponentName);
   const draw = outcome?.match.isDraw === true;
   const won = outcome?.match.didWin === true;
+  const hitDecision = outcome?.match.resultKind === 'hits';
   const seriesFinished = session.status === 'closed' && !session.leftByMe && !session.opponentLeft
     && Math.max(session.myScore, session.opponentScore) >= targetScore;
   const seriesWon = seriesFinished && session.myScore >= targetScore;
@@ -43,7 +44,7 @@ export function DuelSessionRoom({ session, outcome, nickname, busy, onChoose, on
       ? seriesWon ? `${myName}, 5승 먼저.` : `${opponentName}, 5승 먼저.`
       : session.opponentLeft ? `${opponentName}이 먼저 튐.` : '오늘 시비는 여기까지.'
     : session.chooserIsMe
-      ? draw ? '둘 다 놓침. 네가 골라.' : `${myName}, 졌으니 골라.`
+      ? draw ? '명중 동점. 네가 골라.' : `${myName}, 졌으니 골라.`
       : `${opponentName}이 복수 준비 중.`;
   const detail = session.status === 'closed'
     ? seriesFinished
@@ -75,7 +76,7 @@ export function DuelSessionRoom({ session, outcome, nickname, busy, onChoose, on
 
     {outcome && session.status !== 'closed' && <div className={`duel-session-last ${draw ? 'is-draw' : won ? 'is-win' : 'is-loss'}`}>
       <CatCharacter caught={won} pose={won ? 'panic' : 'taunt'} fur={previous.fur} accent={previous.accent} evil={previous.evil} />
-      <div><small>방금 판 · {previous.name}</small><strong>{draw ? '고양이 단독승' : won ? `${myName} 먼저` : `${opponentName} 먼저`}</strong><span>{outcome.localElapsedMs === null ? '나는 못 잡음' : `내 기록 ${(outcome.localElapsedMs / 1000).toFixed(2)}초`}</span></div>
+      <div><small>방금 판 · {previous.name}</small><strong>{draw ? '명중 동점 · 점수 그대로' : hitDecision ? won ? `${myName} 판정승` : `${opponentName} 판정승` : won ? `${myName} 먼저` : `${opponentName} 먼저`}</strong><span>{hitDecision || draw ? `60초 명중 · 나 ${outcome.match.myHits} : ${outcome.match.opponentHits} 상대` : outcome.localElapsedMs === null ? '나는 못 잡음' : `내 기록 ${(outcome.localElapsedMs / 1000).toFixed(2)}초`}</span></div>
     </div>}
 
     {session.status === 'choosing' && session.chooserIsMe && waitingTaunt && !session.lastTauntIsMine && <aside className="duel-session-taunt-received" role="status" aria-live="polite">

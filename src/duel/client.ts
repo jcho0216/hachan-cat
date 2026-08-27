@@ -47,6 +47,8 @@ function normalizeMatch(value: unknown): DuelMatch {
   const rawExpiresAt = finiteNumber(row.expiresAt, Date.parse(String(row.expires_at ?? '')));
   const normalizedStatus = status as DuelMatch['status'];
   const normalizedKind = opponentKind as DuelMatch['opponentKind'];
+  const rawResultKind = row.resultKind ?? row.result_kind;
+  const resultKind = ['catch', 'hits', 'draw'].includes(String(rawResultKind)) ? rawResultKind as DuelMatch['resultKind'] : null;
   const isDraw = row.isDraw === true || (normalizedStatus === 'finished' && normalizedKind === 'live' && winnerId === null);
   const didWin = typeof rawDidWin === 'boolean' ? rawDidWin
     : normalizedStatus !== 'finished' ? null
@@ -71,6 +73,12 @@ function normalizeMatch(value: unknown): DuelMatch {
     winnerElapsedMs: nullableNumber(row.winnerElapsedMs ?? row.winner_elapsed_ms),
     winnerAttempts: nullableNumber(row.winnerAttempts ?? row.winner_attempts),
     winnerAccuracy: nullableNumber(row.winnerAccuracy ?? row.winner_accuracy),
+    myHits: Math.max(0, Math.round(finiteNumber(row.myHits ?? (isPlayerOne ? row.player_one_hits : row.player_two_hits)))),
+    opponentHits: Math.max(0, Math.round(finiteNumber(row.opponentHits ?? (isPlayerOne ? row.player_two_hits : row.player_one_hits)))),
+    resultKind,
+    roundDeadline: nullableNumber(row.roundDeadline) === null
+      ? normalizedKind === 'live' && level >= 9 ? rawStartsAt + serverClockOffsetMs + 60_000 : null
+      : nullableNumber(row.roundDeadline)! + serverClockOffsetMs,
     isDraw,
     didWin,
   };
@@ -271,6 +279,21 @@ export async function claimDuel(matchId: string, elapsedMs: number, attempts: nu
     p_attempts: Math.round(attempts),
     p_accuracy: Math.round(accuracy),
   });
+  if (response.error) throw response.error;
+  return normalizeMatch(response.data);
+}
+
+export async function reportDuelBossHit(matchId: string, hits: number) {
+  const response = await supabase().rpc('duel_report_boss_hit', {
+    p_match_id: matchId,
+    p_hits: Math.round(hits),
+  });
+  if (response.error) throw response.error;
+  return normalizeMatch(response.data);
+}
+
+export async function settleDuelBossRound(matchId: string) {
+  const response = await supabase().rpc('duel_settle_boss_round', { p_match_id: matchId });
   if (response.error) throw response.error;
   return normalizeMatch(response.data);
 }

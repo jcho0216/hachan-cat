@@ -36,13 +36,15 @@ import { DuelFinishBurst } from './components/DuelFinishBurst';
 import { BattleNameSheet, type BattleNameIntent } from './components/BattleNameSheet';
 import { DuelCatPicker } from './components/DuelCatPicker';
 import { DuelSessionRoom } from './components/DuelSessionRoom';
+import { WelcomeTutorial } from './components/WelcomeTutorial';
 import { isDuelConfigured } from './duel/config';
 import { duelNickname as getDuelNickname, isDuelNicknameConfirmed, saveDuelNickname, withNim } from './duel/nickname';
 import { clearBattleInviteToken, parseBattleInviteToken, readStoredBattleInviteToken, shareBattleInvite, storeBattleInviteToken, stripBattleInviteFromUrl } from './duel/invite';
 import { clearStoredDuelSessionId, readStoredDuelSessionId, storeDuelSessionId } from './duel/session';
 import type { DuelGesture, DuelInvite, DuelInvitePreview, DuelLeague as DuelLeagueData, DuelMatch, DuelOutcome, DuelProfile, DuelSession } from './duel/types';
+import { DUEL_BOSS_ROUND_MS, duelBossRemainingMs, isTimedBossDuel } from './duel/rules';
 
-type Screen = 'home' | 'levels' | 'game' | 'ending' | 'result' | 'loss' | 'collection' | 'duelLobby' | 'duelReady' | 'duelBurst' | 'duelResult' | 'duelLeague' | 'duelInvite' | 'duelInviteLobby' | 'duelPicker' | 'duelSession';
+type Screen = 'tutorial' | 'home' | 'levels' | 'game' | 'ending' | 'result' | 'loss' | 'collection' | 'duelLobby' | 'duelReady' | 'duelBurst' | 'duelResult' | 'duelLeague' | 'duelInvite' | 'duelInviteLobby' | 'duelPicker' | 'duelSession';
 type Aim = MovementAim & { x: number; y: number; clientX: number; clientY: number; startedAt: number; traveledPx: number };
 type PendingBattleName = { intent: BattleNameIntent; outcome?: DuelOutcome | null };
 
@@ -65,6 +67,7 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 const formatSeconds = (elapsedMs: number) => `${(elapsedMs / 1000).toFixed(2)}초`;
 const duelApi = () => import('./duel/client');
 const DEV_DUEL_PREVIEW = import.meta.env.DEV ? new URLSearchParams(window.location.search).get('duel-preview') : null;
+const DEV_TUTORIAL_PREVIEW = import.meta.env.DEV && new URLSearchParams(window.location.search).get('tutorial-preview') === '1';
 const DEV_DUEL_SESSION_PREVIEW = DEV_DUEL_PREVIEW?.startsWith('session') === true;
 const INITIAL_BATTLE_TOKEN = parseBattleInviteToken(window.location.search) || readStoredBattleInviteToken();
 const INITIAL_DUEL_SESSION_ID = readStoredDuelSessionId();
@@ -73,10 +76,10 @@ const DEV_DUEL_MATCH: DuelMatch = {
   status: 'finished', opponentKind: 'live', matchSource: 'invite', opponentName: '뻔뻔한 참치맨', ghostElapsedMs: null,
   sessionId: null, sessionRound: null,
   winnerId: 'preview-user', winnerSide: 'player', winnerElapsedMs: 4280, winnerAttempts: 2, winnerAccuracy: 91, didWin: true,
-  isDraw: false,
+  myHits: 0, opponentHits: 0, resultKind: 'catch', roundDeadline: null, isDraw: false,
 };
 const DEV_DUEL_LOSS_MATCH: DuelMatch = { ...DEV_DUEL_MATCH, winnerId: 'preview-opponent', winnerElapsedMs: 3120, winnerAttempts: 1, winnerAccuracy: 96, didWin: false };
-const DEV_DUEL_GAME_MATCH: DuelMatch = { ...DEV_DUEL_MATCH, level: 6, status: 'ready', startsAt: Date.now() - 1_000, expiresAt: Date.now() + 60_000, winnerId: null, winnerSide: null, winnerElapsedMs: null, winnerAttempts: null, winnerAccuracy: null, didWin: null };
+const DEV_DUEL_GAME_MATCH: DuelMatch = { ...DEV_DUEL_MATCH, level: DEV_DUEL_PREVIEW === 'game-boss' ? 10 : 6, status: 'ready', startsAt: Date.now() - 1_000, expiresAt: Date.now() + 60_000, winnerId: null, winnerSide: null, winnerElapsedMs: null, winnerAttempts: null, winnerAccuracy: null, resultKind: null, roundDeadline: DEV_DUEL_PREVIEW === 'game-boss' ? Date.now() + 59_000 : null, didWin: null };
 const DEV_DUEL_PROFILE: DuelProfile = { nickname: '손빠른 냥헌터', matches: 12, wins: 8, losses: 4, currentStreak: 3, bestStreak: 5, fastestWinMs: 3210, ghostWins: 3, friendMatches: 5, friendWins: 3, friendLosses: 2 };
 const DEV_DUEL_LEAGUE: DuelLeagueData = { weekStartsAt: Date.now(), myRank: 4, players: [
   { rank: 1, nickname: '약오른 발바닥', wins: 14, points: 34, fastestWinMs: 2680, isMe: false },
@@ -102,14 +105,14 @@ const readLegacyCaughtLevels = () => {
 };
 
 function App() {
-  const [screen, setScreen] = useState<Screen>(() => DEV_DUEL_PREVIEW === 'game' ? 'game' : DEV_DUEL_PREVIEW === 'lobby' ? 'duelLobby' : DEV_DUEL_PREVIEW === 'ready' ? 'duelReady' : DEV_DUEL_PREVIEW === 'burst' ? 'duelBurst' : DEV_DUEL_PREVIEW === 'result' ? 'duelResult' : DEV_DUEL_SESSION_PREVIEW ? 'duelSession' : DEV_DUEL_PREVIEW === 'picker' ? 'duelPicker' : DEV_DUEL_PREVIEW === 'league' ? 'duelLeague' : DEV_DUEL_PREVIEW === 'invite' ? 'duelInvite' : DEV_DUEL_PREVIEW === 'invite-lobby' ? 'duelInviteLobby' : INITIAL_BATTLE_TOKEN ? 'duelInvite' : 'home');
+  const [screen, setScreen] = useState<Screen>(() => DEV_TUTORIAL_PREVIEW ? 'tutorial' : DEV_DUEL_PREVIEW === 'game' || DEV_DUEL_PREVIEW === 'game-boss' ? 'game' : DEV_DUEL_PREVIEW === 'lobby' ? 'duelLobby' : DEV_DUEL_PREVIEW === 'ready' ? 'duelReady' : DEV_DUEL_PREVIEW === 'burst' ? 'duelBurst' : DEV_DUEL_PREVIEW === 'result' ? 'duelResult' : DEV_DUEL_SESSION_PREVIEW ? 'duelSession' : DEV_DUEL_PREVIEW === 'picker' ? 'duelPicker' : DEV_DUEL_PREVIEW === 'league' ? 'duelLeague' : DEV_DUEL_PREVIEW === 'invite' ? 'duelInvite' : DEV_DUEL_PREVIEW === 'invite-lobby' ? 'duelInviteLobby' : INITIAL_BATTLE_TOKEN ? 'duelInvite' : safeStorageGet(FIRST_PLAY_KEY) === 'seen' ? 'home' : 'tutorial');
   const [attempts, setAttempts] = useState(0);
   const [misses, setMisses] = useState(0);
   const [nearMisses, setNearMisses] = useState(0);
   const [selectedLevel, setSelectedLevel] = useState(() => {
     return resolveInitialSelectedLevel(safeStorageGet(SELECTED_LEVEL_KEY), safeStorageGet(LEGACY_SELECTED_LEVEL_KEY), LEVELS.length);
   });
-  const [activeLevel, setActiveLevel] = useState(DEV_DUEL_PREVIEW === 'game' ? DEV_DUEL_GAME_MATCH.level : selectedLevel);
+  const [activeLevel, setActiveLevel] = useState(DEV_DUEL_PREVIEW === 'game' || DEV_DUEL_PREVIEW === 'game-boss' ? DEV_DUEL_GAME_MATCH.level : selectedLevel);
   const [unlockedLevel, setUnlockedLevel] = useState(() => {
     const saved = safeStorageGet(PROGRESS_KEY);
     if (saved) return sanitizeLevelId(saved, 3, LEVELS.length);
@@ -139,7 +142,7 @@ function App() {
   const [collectionTab, setCollectionTab] = useState<'levels' | 'memes'>('levels');
   const [collection, setCollection] = useState<string[]>(() => { try { return sanitizeRewardIds(JSON.parse(safeStorageGet(COLLECTION_KEY) ?? '[]')); } catch { return []; } });
   const [busy, setBusy] = useState<'save' | 'share' | null>(null);
-  const [mode, setMode] = useState<GameMode>(DEV_DUEL_PREVIEW === 'game' ? 'duel' : 'campaign');
+  const [mode, setMode] = useState<GameMode>(DEV_DUEL_PREVIEW === 'game' || DEV_DUEL_PREVIEW === 'game-boss' ? 'duel' : 'campaign');
   const [phaseBehavior, setPhaseBehavior] = useState<CatBehavior>(() => getLevel(selectedLevel).behavior);
   const [phaseKey, setPhaseKey] = useState(0);
   const [soundEnabled, setSoundEnabled] = useState(() => safeStorageGet(SOUND_KEY) !== 'off');
@@ -163,7 +166,7 @@ function App() {
   const [activeChallenge, setActiveChallenge] = useState<ChallengeTarget | null>(null);
   const [onlineCount, setOnlineCount] = useState(0);
   const [duelLobbyPhase, setDuelLobbyPhase] = useState<'connecting' | 'waiting' | 'longwait' | 'error'>('connecting');
-  const [activeDuel, setActiveDuel] = useState<DuelMatch | null>(() => DEV_DUEL_PREVIEW === 'game' ? DEV_DUEL_GAME_MATCH : DEV_DUEL_PREVIEW === 'burst' ? DEV_DUEL_LOSS_MATCH : DEV_DUEL_PREVIEW === 'ready' || DEV_DUEL_PREVIEW === 'result' ? DEV_DUEL_MATCH : null);
+  const [activeDuel, setActiveDuel] = useState<DuelMatch | null>(() => DEV_DUEL_PREVIEW === 'game' || DEV_DUEL_PREVIEW === 'game-boss' ? DEV_DUEL_GAME_MATCH : DEV_DUEL_PREVIEW === 'burst' ? DEV_DUEL_LOSS_MATCH : DEV_DUEL_PREVIEW === 'ready' || DEV_DUEL_PREVIEW === 'result' ? DEV_DUEL_MATCH : null);
   const [duelOutcome, setDuelOutcome] = useState<DuelOutcome | null>(() => DEV_DUEL_PREVIEW === 'burst' ? { match: DEV_DUEL_LOSS_MATCH, localElapsedMs: null, localAttempts: 2, localAccuracy: 0, reason: 'opponent' } : DEV_DUEL_PREVIEW === 'result' ? { match: DEV_DUEL_MATCH, localElapsedMs: 4280, localAttempts: 2, localAccuracy: 91, reason: 'caught' } : DEV_DUEL_PREVIEW === 'session-taunt-winner' ? { match: DEV_DUEL_RANDOM_WIN_MATCH, localElapsedMs: 4280, localAttempts: 2, localAccuracy: 91, reason: 'caught' } : DEV_DUEL_PREVIEW === 'session-taunt-loser' ? { match: DEV_DUEL_RANDOM_LOSS_MATCH, localElapsedMs: null, localAttempts: 4, localAccuracy: 0, reason: 'opponent' } : DEV_DUEL_PREVIEW === 'session' ? { match: DEV_DUEL_SESSION_MATCH, localElapsedMs: null, localAttempts: 4, localAccuracy: 0, reason: 'opponent' } : null);
   const [duelCountdown, setDuelCountdown] = useState(3);
   const [duelProfile, setDuelProfile] = useState<DuelProfile | null>(() => DEV_DUEL_PREVIEW ? DEV_DUEL_PROFILE : null);
@@ -226,9 +229,12 @@ function App() {
   const duelSessionWatchIdRef = useRef('');
   const duelSessionAutoAdvanceRef = useRef('');
   const duelResolvedRef = useRef(false);
+  const duelBossProgressRef = useRef<Promise<void>>(Promise.resolve());
+  const duelBossSettleTimerRef = useRef(0);
   const activeDuelRef = useRef<DuelMatch | null>(null);
   const activeDuelSessionRef = useRef<DuelSession | null>(DEV_DUEL_SESSION_PREVIEW ? DEV_DUEL_ACTIVE_SESSION : null);
   const lastTrackedScreenRef = useRef('');
+  const tutorialImpressionRef = useRef(false);
   const difficulty = getLevel(activeLevel);
   const selectedDifficulty = getLevel(selectedLevel);
 
@@ -301,7 +307,7 @@ function App() {
   }, []);
   useEffect(() => {
     screenRef.current = screen;
-    if (screen === 'home') {
+    if (screen === 'home' || screen === 'tutorial') {
       if (nestedHistoryRef.current) { nestedHistoryRef.current = false; window.history.back(); }
       return;
     }
@@ -310,6 +316,13 @@ function App() {
       window.history.pushState({ hachanApp: true }, '', window.location.href);
     }
   }, [screen]);
+  useEffect(() => {
+    if (screen !== 'tutorial') return;
+    safeStorageSet(FIRST_PLAY_KEY, 'seen');
+    if (tutorialImpressionRef.current) return;
+    tutorialImpressionRef.current = true;
+    track('tutorial_impression', { level: selectedLevel, surface: 'welcome' });
+  }, [screen, selectedLevel]);
   useEffect(() => {
     const key = screen === 'game' || screen === 'result' || screen === 'loss' ? `${screen}:${mode}:${activeLevel}` : screen;
     if (lastTrackedScreenRef.current === key) return;
@@ -352,7 +365,7 @@ function App() {
         if (wasPractice && screen === 'game') setShowGameGuide(true);
         pauseAudio();
       } else if (hiddenAtRef.current) {
-        if (screen === 'game') startedAt.current += Date.now() - hiddenAtRef.current;
+        if (screen === 'game' && mode !== 'duel') startedAt.current += Date.now() - hiddenAtRef.current;
         hiddenAtRef.current = null;
       }
     };
@@ -396,7 +409,27 @@ function App() {
     const clock = window.setInterval(() => {
       const elapsedMs = Math.max(0, Date.now() - startedAt.current);
       if (mode === 'duel') {
-        setDuelElapsedMs(elapsedMs);
+        if (!isTimedBossDuel(difficulty.hitsRequired)) {
+          setDuelElapsedMs(elapsedMs);
+          return;
+        }
+        const cappedElapsed = Math.min(DUEL_BOSS_ROUND_MS, elapsedMs);
+        const left = duelBossRemainingMs(cappedElapsed);
+        setDuelElapsedMs(cappedElapsed);
+        const urgencySecond = urgencySecondFor(left);
+        if (!finishedRef.current && urgencySecond && urgencySecondRef.current !== urgencySecond) {
+          urgencySecondRef.current = urgencySecond;
+          playSound('countdown', soundEnabled);
+          void haptic(urgencySecond === 1 ? 'tickMedium' : 'tickWeak');
+        }
+        if (left === 0 && !finishedRef.current) {
+          finishedRef.current = true;
+          aimRef.current = null;
+          setAim(null);
+          setAttention('idle');
+          setFeedback({ key: Date.now(), text: '60초 종료 · 명중 수 판정 중', near: true });
+          void resolveDuelBossTimeout();
+        }
         return;
       }
       const left = Math.max(0, difficulty.roundMs - elapsedMs);
@@ -451,6 +484,9 @@ function App() {
   const homeLevelLabel = isFreshPlayer ? selectedLevel === DEFAULT_START_LEVEL ? '추천 시작' : '선택한 상대' : '이어서 도전';
   const rewardCount = useMemo(() => new Set(collection.filter((id) => REWARDS.some((reward) => reward.id === id))).size, [collection]);
   const timeProgress = Math.round((remainingMs / difficulty.roundMs) * 100);
+  const timedBossDuel = mode === 'duel' && isTimedBossDuel(difficulty.hitsRequired);
+  const bossDuelRemainingMs = duelBossRemainingMs(duelElapsedMs);
+  const bossDuelProgress = Math.round((bossDuelRemainingMs / DUEL_BOSS_ROUND_MS) * 100);
   const resultChallengeComparison = result ? compareChallengeResult(result.elapsedMs, result.attempts, activeChallenge) : null;
   const resultPrimaryAction = result ? getResultPrimaryAction(result.mode, result.level, LEVELS.length, resultChallengeComparison?.outcome ?? null) : 'share';
   const resultMoment = result ? getCatchMoment(result, getLevel(result.level).hitsRequired ?? 1) : null;
@@ -782,6 +818,7 @@ function App() {
     duelGestureLastPointRef.current = null;
     duelGestureLastMoveRef.current = 0;
     window.clearTimeout(duelGestureHideTimerRef.current);
+    window.clearTimeout(duelBossSettleTimerRef.current);
     setOpponentGesture(null);
   }
 
@@ -827,6 +864,38 @@ function App() {
     void duelApi().then((api) => api.getDuelProfile()).then(setDuelProfile).catch(() => undefined);
   }
 
+  function queueDuelBossHit(matchId: string, hits: number) {
+    duelBossProgressRef.current = duelBossProgressRef.current.catch(() => undefined).then(async () => {
+      const current = activeDuelRef.current;
+      if (!current || current.id !== matchId || current.status !== 'ready' || duelResolvedRef.current) return;
+      const updated = await (await duelApi()).reportDuelBossHit(matchId, hits);
+      if (activeDuelRef.current?.id !== matchId || duelResolvedRef.current) return;
+      activeDuelRef.current = updated;
+      setActiveDuel(updated);
+    }).catch(() => undefined);
+  }
+
+  async function resolveDuelBossTimeout() {
+    const match = activeDuelRef.current;
+    if (!match || !isTimedBossDuel(getLevel(match.level).hitsRequired) || duelResolvedRef.current) return;
+    await duelBossProgressRef.current.catch(() => undefined);
+    const settleAt = (match.roundDeadline ?? match.startsAt + DUEL_BOSS_ROUND_MS) + 850;
+    if (Date.now() < settleAt) {
+      window.clearTimeout(duelBossSettleTimerRef.current);
+      duelBossSettleTimerRef.current = window.setTimeout(() => void resolveDuelBossTimeout(), settleAt - Date.now());
+      return;
+    }
+    try {
+      const resolved = await (await duelApi()).settleDuelBossRound(match.id);
+      const reason: DuelOutcome['reason'] = resolved.isDraw ? 'draw' : 'time';
+      finishDuel(resolved, reason, DUEL_BOSS_ROUND_MS, attemptsRef.current, 0);
+    } catch {
+      if (activeDuelRef.current?.id !== match.id || duelResolvedRef.current) return;
+      window.clearTimeout(duelBossSettleTimerRef.current);
+      duelBossSettleTimerRef.current = window.setTimeout(() => void resolveDuelBossTimeout(), 500);
+    }
+  }
+
   function prepareDuel(match: DuelMatch) {
     clearDuelRealtime();
     clearInviteWatch();
@@ -840,7 +909,7 @@ function App() {
       duelUnsubscribeRef.current = subscribeToDuel(match.id, (updated) => {
       activeDuelRef.current = updated;
       setActiveDuel(updated);
-      if (updated.status === 'finished' && !duelResolvedRef.current) finishDuel(updated, updated.isDraw ? 'draw' : 'opponent');
+      if (updated.status === 'finished' && !duelResolvedRef.current) finishDuel(updated, updated.isDraw ? 'draw' : updated.resultKind === 'hits' ? 'time' : updated.didWin ? 'caught' : 'opponent');
       });
       const gestures = connectDuelGestures(match.id, (gesture) => {
         if (activeDuelRef.current?.id === match.id && !duelResolvedRef.current) showOpponentGesture(gesture);
@@ -909,7 +978,13 @@ function App() {
     try {
       const resolved = await (await duelApi()).claimDuel(match.id, elapsedMs, duelAttempts, accuracy);
       finishDuel(resolved, resolved.didWin ? 'caught' : 'opponent', elapsedMs, duelAttempts, accuracy);
-    } catch {
+    } catch (error) {
+      if (isTimedBossDuel(getLevel(match.level).hitsRequired) && String(error).includes('ROUND_ENDED')) {
+        finishedRef.current = true;
+        setFeedback({ key: Date.now(), text: '60초 종료 · 명중 수 판정 중', near: true });
+        void resolveDuelBossTimeout();
+        return;
+      }
       const fallback = { ...match, status: 'finished' as const, didWin: false };
       finishDuel(fallback, 'connection', elapsedMs, duelAttempts, accuracy);
     }
@@ -925,25 +1000,35 @@ function App() {
     } catch { setDuelLeagueStatus('error'); }
   }
 
-  function startGame(levelId = selectedLevel, nextMode: GameMode = 'campaign') {
+  function startGame(levelId = selectedLevel, nextMode: GameMode = 'campaign', skipInlineGuide = false) {
     const safeLevel = nextMode === 'daily' || nextMode === 'challenge' || nextMode === 'duel' ? clamp(levelId, 1, LEVELS.length) : Math.min(levelId, unlockedLevel, LEVELS.length);
     const isFirstPlay = nextMode === 'campaign' && safeStorageGet(FIRST_PLAY_KEY) !== 'seen';
+    const restoredBossHits = nextMode === 'duel' ? activeDuelRef.current?.myHits ?? 0 : 0;
     setActiveLevel(safeLevel);
     if (nextMode === 'campaign') setSelectedLevel(safeLevel);
     setMode(nextMode);
     setActiveChallenge(nextMode === 'challenge' ? incomingChallenge : null);
     startedAt.current = nextMode === 'duel' && activeDuelRef.current ? activeDuelRef.current.startsAt : Date.now();
     window.clearTimeout(dodgeOpeningTimerRef.current);
-    moveStep.current = 0; attemptsRef.current = 0; missesRef.current = 0; bossHitsRef.current = 0; hitAccuracyTotalRef.current = 0; urgencySecondRef.current = 0; dodgeOpeningUntilRef.current = 0; finishedRef.current = false; aimRef.current = null; positionRef.current = START_POSITION; reactedToAimRef.current = false; practiceAttemptRef.current = false;
+    moveStep.current = 0; attemptsRef.current = 0; missesRef.current = 0; bossHitsRef.current = restoredBossHits; hitAccuracyTotalRef.current = 0; urgencySecondRef.current = 0; dodgeOpeningUntilRef.current = 0; finishedRef.current = false; aimRef.current = null; positionRef.current = START_POSITION; reactedToAimRef.current = false; practiceAttemptRef.current = false;
+    duelBossProgressRef.current = Promise.resolve();
+    window.clearTimeout(duelBossSettleTimerRef.current);
     nearMissesRef.current = 0; closestDistanceRef.current = Number.POSITIVE_INFINITY;
-    setAttempts(0); setMisses(0); setNearMisses(0); setBossHits(0); setPose('wiggle'); setPosition(START_POSITION);
+    setAttempts(0); setMisses(0); setNearMisses(0); setBossHits(restoredBossHits); setPose('wiggle'); setPosition(START_POSITION);
     setPhaseBehavior(getLevel(safeLevel).behavior); setPhaseKey((value) => value + 1);
     setTaunt(nextMode === 'duel' ? '상대 손도 뛰는 중.' : '잡을 수 있으면.'); setTauntKey((value) => value + 1); setAim(null); setFeedback(null); setAttention('idle'); setDodgeFx(null); setDodgeOpening(false);
-    setShowGameGuide(isFirstPlay); setTutorialRetry(false);
+    setShowGameGuide(isFirstPlay && !skipInlineGuide); setTutorialRetry(false);
     setRemainingMs(getLevel(safeLevel).roundMs); setDuelElapsedMs(0); setResult(null); setLossResult(null); setIsNewBest(false); setBestMessage(''); setScreen('game');
     setLeaderboardStatus('idle');
     track('game_start', { level: safeLevel, mode: nextMode, firstPlay: isFirstPlay });
-    if (isFirstPlay) track('tutorial_impression', { level: safeLevel });
+    if (isFirstPlay && !skipInlineGuide) track('tutorial_impression', { level: safeLevel, surface: 'game' });
+  }
+
+  function startWelcomeGame() {
+    safeStorageSet(FIRST_PLAY_KEY, 'seen');
+    track('tutorial_start', { level: incomingChallenge?.level ?? selectedLevel, surface: 'welcome' });
+    if (incomingChallenge) startGame(incomingChallenge.level, 'challenge', true);
+    else startGame(selectedLevel, 'campaign', true);
   }
 
   function pointInField(clientX: number, clientY: number) {
@@ -1071,6 +1156,13 @@ function App() {
     clearAim();
     window.clearTimeout(dodgeOpeningTimerRef.current); dodgeOpeningUntilRef.current = 0; setDodgeOpening(false);
 
+    if (mode === 'duel' && isTimedBossDuel(difficulty.hitsRequired) && elapsedMs >= DUEL_BOSS_ROUND_MS) {
+      finishedRef.current = true;
+      setFeedback({ key: Date.now(), text: '60초 종료 · 명중 수 판정 중', near: true });
+      void resolveDuelBossTimeout();
+      return;
+    }
+
     if (!validCatchGesture) {
       if (isPracticeAttempt) {
         startedAt.current = Date.now();
@@ -1097,6 +1189,10 @@ function App() {
         setFeedback({ key: Date.now(), text: `${nextBossHits}/${requiredHits} 명중 · ${requiredHits - nextBossHits}번 더!`, near: true });
         setTaunt(nextBossHits + 1 === requiredHits ? '어, 다음은 좀 위험한데.' : '아직 남았어.'); setTauntKey((value) => value + 1);
         moveCatAway(event.clientX, event.clientY);
+        if (mode === 'duel') {
+          const matchId = activeDuelRef.current?.id;
+          if (matchId) queueDuelBossHit(matchId, nextBossHits);
+        }
         void haptic('tickMedium'); playSound('hit', soundEnabled);
         return;
       }
@@ -1231,13 +1327,15 @@ function App() {
 
   return (
     <main className="app-shell">
-      <header className="app-header"><button className="wordmark" onClick={() => isDuelFlowScreen ? void abandonDuel('home') : setScreen('home')} aria-label="홈으로">하찮냥<span>˙</span></button><div className="header-actions"><button className="sound-toggle" onClick={toggleSound} aria-label={soundEnabled ? '소리 끄기' : '소리 켜기'} aria-pressed={soundEnabled}>{soundEnabled ? '♪' : '×'}</button><button className="collection-link" onClick={() => isDuelFlowScreen ? void abandonDuel('collection') : setScreen('collection')} aria-label={`도감, 잡은 고양이 ${collectionCount}마리`}>도감 <strong>{collectionCount}</strong></button></div></header>
+      <header className="app-header"><button className="wordmark" disabled={screen === 'tutorial'} onClick={() => isDuelFlowScreen ? void abandonDuel('home') : setScreen('home')} aria-label="홈으로">하찮냥<span>˙</span></button><div className="header-actions"><button className="sound-toggle" onClick={toggleSound} aria-label={soundEnabled ? '소리 끄기' : '소리 켜기'} aria-pressed={soundEnabled}>{soundEnabled ? '♪' : '×'}</button>{screen !== 'tutorial' && <button className="collection-link" onClick={() => isDuelFlowScreen ? void abandonDuel('collection') : setScreen('collection')} aria-label={`도감, 잡은 고양이 ${collectionCount}마리`}>도감 <strong>{collectionCount}</strong></button>}</div></header>
+
+      {screen === 'tutorial' && <WelcomeTutorial onNext={startWelcomeGame} />}
 
       {screen === 'home' && <section className="home-screen page-enter">
         <div className="home-copy"><span className="kicker">{incomingChallenge ? incomingChallenge.source === 'loss' ? '친구가 복수를 부탁함' : '피할 수 없는 기록 도착' : '잡으면 이기고, 놓치면 놀림받음'}</span><h1>{incomingChallenge ? <>친구 기록이,<br /><em>좀 건방지네?</em></> : <>이 고양이,<br /><em>한 번 잡아볼래?</em></>}</h1><p>{incomingChallenge ? '같은 고양이, 같은 규칙. 이번엔 당신 차례입니다.' : '꾹 누른 채 쫓아가세요. 머리에 닿았을 때 손을 떼면 성공.'}</p></div>
         <div className="home-character-wrap"><div className="speech-bubble">{incomingChallenge ? '남의 기록 깨는 게 제일 재밌지.' : '난 가만히 있을 생각 없는데.'}</div><CatCharacter pose={incomingChallenge ? 'taunt' : 'paddle'} evil={incomingChallenge ? getLevel(incomingChallenge.level).evil : 2} fur={incomingChallenge ? getLevel(incomingChallenge.level).fur : undefined} accent={incomingChallenge ? getLevel(incomingChallenge.level).accent : undefined} /><span className="floor-shadow" /></div>
         <div className="play-rule" aria-label="게임 방법"><span>☝</span><strong>꾹 누르고 쫓다가</strong><em>머리에서 손 떼기</em></div>
-        {incomingChallenge ? <><div className="challenge-card"><div><span>{incomingChallenge.source === 'loss' ? '친구의 복수 요청' : '친구 기록 도착'}</span><strong>Lv.{incomingChallenge.level} {getLevel(incomingChallenge.level).name}</strong><p>{incomingChallenge.elapsedMs ? `친구 기록 ${formatSeconds(incomingChallenge.elapsedMs)} · ${incomingChallenge.attempts}회. 더 빠르게 잡기` : '친구가 놓친 고양이, 대신 잡아주기'}</p></div><button onClick={() => startGame(incomingChallenge.level, 'challenge')}>기록 깨기</button></div><button className="text-button" onClick={() => setIncomingChallenge(null)}>일단 내 게임부터 하기</button></> : <><DuelHomeCard configured={isDuelConfigured} onlineCount={onlineCount} profile={duelProfile} nickname={duelNickname} onPlay={requestDuelMatch} onInvite={() => requestFriendDuelInvite()} onLeague={() => void openDuelLeague()} onEditName={requestBattleNameEdit} /><button className="level-select-button" onClick={() => setScreen('levels')}><span>{homeLevelLabel}</span><strong>Lv.{selectedDifficulty.id} {selectedDifficulty.name}</strong><i>10마리 보기 ›</i></button><div className="daily-card"><div><span>{daily.label}</span><strong>Lv.{daily.level.id} {daily.level.name}</strong><p>오늘은 모두 같은 움직임 · 오늘 최고 {dailyBest?.date === daily.date ? `${dailyBest.score.toLocaleString()}점` : '없음'}</p><small>{completedToday ? `${dailyStreak}일 연속 완료` : dailyStreak ? `오늘 잡으면 ${dailyStreak + 1}일 연속` : '오늘부터 연속 도전'} · 이번 주 내 최고 {weeklyBest ? `${weeklyBest.score.toLocaleString()}점` : '없음'}</small></div><button onClick={() => startGame(daily.level.id, 'daily')}>{completedToday ? '기록 단축' : '한 판 하기'}</button></div><button className="primary-button wobble-button" onClick={() => startGame()}>혼자 도전하기 <span>→</span></button><button className="rank-link" onClick={handleLeaderboard}>🏆 토스 전체 랭킹</button><p className="tiny-caption">혼자 모드는 제한전 · 온라인은 한 판 무제한, 먼저 5승</p></>}
+        {incomingChallenge ? <><div className="challenge-card"><div><span>{incomingChallenge.source === 'loss' ? '친구의 복수 요청' : '친구 기록 도착'}</span><strong>Lv.{incomingChallenge.level} {getLevel(incomingChallenge.level).name}</strong><p>{incomingChallenge.elapsedMs ? `친구 기록 ${formatSeconds(incomingChallenge.elapsedMs)} · ${incomingChallenge.attempts}회. 더 빠르게 잡기` : '친구가 놓친 고양이, 대신 잡아주기'}</p></div><button onClick={() => startGame(incomingChallenge.level, 'challenge')}>기록 깨기</button></div><button className="text-button" onClick={() => setIncomingChallenge(null)}>일단 내 게임부터 하기</button></> : <><DuelHomeCard configured={isDuelConfigured} onlineCount={onlineCount} profile={duelProfile} nickname={duelNickname} onPlay={requestDuelMatch} onInvite={() => requestFriendDuelInvite()} onLeague={() => void openDuelLeague()} onEditName={requestBattleNameEdit} /><button className="level-select-button" onClick={() => setScreen('levels')}><span>{homeLevelLabel}</span><strong>Lv.{selectedDifficulty.id} {selectedDifficulty.name}</strong><i>10마리 보기 ›</i></button><div className="daily-card"><div><span>{daily.label}</span><strong>Lv.{daily.level.id} {daily.level.name}</strong><p>오늘은 모두 같은 움직임 · 오늘 최고 {dailyBest?.date === daily.date ? `${dailyBest.score.toLocaleString()}점` : '없음'}</p><small>{completedToday ? `${dailyStreak}일 연속 완료` : dailyStreak ? `오늘 잡으면 ${dailyStreak + 1}일 연속` : '오늘부터 연속 도전'} · 이번 주 내 최고 {weeklyBest ? `${weeklyBest.score.toLocaleString()}점` : '없음'}</small></div><button onClick={() => startGame(daily.level.id, 'daily')}>{completedToday ? '기록 단축' : '한 판 하기'}</button></div><button className="primary-button wobble-button" onClick={() => startGame()}>혼자 도전하기 <span>→</span></button><button className="rank-link" onClick={handleLeaderboard}>🏆 토스 전체 랭킹</button><p className="tiny-caption">온라인 일반 냥이는 무제한 · 보스는 60초 명중전 · 먼저 5승</p></>}
       </section>}
 
       {screen === 'duelLobby' && <DuelLobby nickname={duelNickname} onlineCount={onlineCount} phase={duelLobbyPhase} onCancel={() => void abandonDuel('home')} onPractice={() => { void abandonDuel('home').then(() => startGame()); }} onInvite={() => { void abandonDuel('home').then(() => requestFriendDuelInvite()); }} />}
@@ -1258,12 +1356,12 @@ function App() {
         <button className="text-button" onClick={() => setScreen('home')}>홈으로</button>
       </section>}
 
-      {screen === 'game' && <section className={`game-screen page-enter behavior-${phaseBehavior} phase-${phaseKey % 2} ${mode !== 'duel' && remainingMs <= 3000 ? 'is-urgent' : ''}`}>
-        {mode === 'duel' && activeDuel && <div className="duel-game-strip"><span><i />{activeDuel.sessionId ? `${activeDuel.matchSource === 'random' ? '실시간' : '친구'} 5승 선착순 ${activeDuel.sessionRound ?? 1}R` : '실시간 승부'}</span><strong>VS {activeDuel.opponentName}</strong><small>{activeDuelSession ? `${activeDuelSession.myScore}:${activeDuelSession.opponentScore} · 먼저 5승 · 진 사람이 다음 냥이 선택` : '무제한 · 먼저 잡으면 즉시 승'}</small></div>}
+      {screen === 'game' && <section className={`game-screen page-enter behavior-${phaseBehavior} phase-${phaseKey % 2} ${timedBossDuel ? 'is-timed-boss' : ''} ${(mode !== 'duel' && remainingMs <= 3000) || (timedBossDuel && bossDuelRemainingMs <= 10_000) ? 'is-urgent' : ''}`}>
+        {mode === 'duel' && activeDuel && <div className="duel-game-strip"><span><i />{activeDuel.sessionId ? `${activeDuel.matchSource === 'random' ? '실시간' : '친구'} 5승 선착순 ${activeDuel.sessionRound ?? 1}R` : '실시간 승부'}</span><strong>VS {activeDuel.opponentName}</strong><small>{activeDuelSession ? `${activeDuelSession.myScore}:${activeDuelSession.opponentScore} · 먼저 5승${timedBossDuel ? ' · 보스 60초 판정' : ' · 패자가 다음 냥이 선택'}` : timedBossDuel ? '60초 · 더 많이 명중하면 승' : '무제한 · 먼저 잡으면 즉시 승'}</small></div>}
         <div className="game-hud"><div className="attempt-counter"><span>Lv.{difficulty.id} {difficulty.name}</span><strong>시도 {attempts}회</strong></div>
           <div className="game-resources">{mode === 'duel' ? <div className="chance-status duel-unlimited"><span>기회 무제한</span><strong aria-label="기회 무제한">∞</strong></div> : <div className="chance-status"><span>기회 {difficulty.attemptsAllowed - misses}</span><div className="chance-lives" aria-label={`남은 기회 ${difficulty.attemptsAllowed - misses}`}>{Array.from({ length: difficulty.attemptsAllowed }, (_, index) => <i key={index} className={index < misses ? 'is-broken' : ''}>●</i>)}</div></div>}
-          {(difficulty.hitsRequired ?? 1) > 1 && <div className="boss-status"><span>명중 {bossHits}/{difficulty.hitsRequired}</span><div className="boss-lives" aria-label={`남은 명중 ${(difficulty.hitsRequired ?? 1) - bossHits}`}>{Array.from({ length: difficulty.hitsRequired ?? 1 }, (_, index) => <i key={index} className={index < bossHits ? 'is-broken' : ''}>♛</i>)}</div></div>}</div>
-          <div className={`round-status ${mode === 'duel' ? 'is-duel-clock' : ''}`}><div><span>{mode === 'duel' ? '경과 시간' : '남은 시간'}</span><strong>{((mode === 'duel' ? duelElapsedMs : remainingMs) / 1000).toFixed(1)}s</strong></div>{mode === 'duel' ? <div className="fatigue-track duel-live-track" aria-label="선착순 진행 중"><i /></div> : <div className="fatigue-track" role="progressbar" aria-label="남은 시간" aria-valuemin={0} aria-valuemax={15} aria-valuenow={Math.ceil(remainingMs / 1000)}><i style={{ width: `${timeProgress}%` }} /></div>}</div>
+          {(difficulty.hitsRequired ?? 1) > 1 && <div className="boss-status"><span>{timedBossDuel ? `나 ${bossHits} : ${activeDuel?.opponentHits ?? 0} 상대` : `명중 ${bossHits}/${difficulty.hitsRequired}`}</span><div className="boss-lives" aria-label={timedBossDuel ? `내 명중 ${bossHits}, 상대 명중 ${activeDuel?.opponentHits ?? 0}` : `남은 명중 ${(difficulty.hitsRequired ?? 1) - bossHits}`}>{Array.from({ length: difficulty.hitsRequired ?? 1 }, (_, index) => <i key={index} className={index < bossHits ? 'is-broken' : ''}>♛</i>)}</div></div>}</div>
+          <div className={`round-status ${mode === 'duel' ? 'is-duel-clock' : ''}`}><div><span>{timedBossDuel ? '남은 시간' : mode === 'duel' ? '경과 시간' : '남은 시간'}</span><strong>{((timedBossDuel ? bossDuelRemainingMs : mode === 'duel' ? duelElapsedMs : remainingMs) / 1000).toFixed(1)}s</strong></div>{mode === 'duel' ? timedBossDuel ? <div className="fatigue-track duel-boss-track" role="progressbar" aria-label="보스 대전 남은 시간" aria-valuemin={0} aria-valuemax={60} aria-valuenow={Math.ceil(bossDuelRemainingMs / 1000)}><i style={{ width: `${bossDuelProgress}%` }} /></div> : <div className="fatigue-track duel-live-track" aria-label="선착순 진행 중"><i /></div> : <div className="fatigue-track" role="progressbar" aria-label="남은 시간" aria-valuemin={0} aria-valuemax={15} aria-valuenow={Math.ceil(remainingMs / 1000)}><i style={{ width: `${timeProgress}%` }} /></div>}</div>
         </div>
         <div ref={fieldRef} className={`game-field ${aim ? 'is-aiming' : ''} ${attention === 'danger' ? 'is-danger' : ''} ${result ? 'is-captured' : ''}`} onPointerDown={handleAimStart} onPointerMove={handleAimMove} onPointerUp={handleAimRelease} onPointerCancel={cancelAim} onLostPointerCapture={cancelAim} aria-label="고양이 잡기 구역">
           <div key={`phase-${phaseKey}`} className="phase-badge"><span>{mode === 'daily' ? '오늘의 움직임' : mode === 'challenge' ? '친구가 본 움직임' : mode === 'duel' ? '둘이 보는 움직임' : '지금은'}</span><strong>{BEHAVIOR_GUIDES[phaseBehavior].label}</strong><small>{BEHAVIOR_GUIDES[phaseBehavior].hint}</small></div>
@@ -1280,7 +1378,7 @@ function App() {
           {feedback && <div key={`feedback-${feedback.key}`} className={`catch-feedback ${feedback.near ? 'is-near' : ''}`} role="status" aria-live="polite">{feedback.text}</div>}
           {showGameGuide && <div className="gesture-coach" aria-label="첫 플레이 안내"><span>☝</span><strong>{tutorialRetry ? <>짧게 탭하면 안 잡혀요<br />꾹 누른 채 머리까지 쫓기</> : <>여기부터 꾹 누른 채<br />고양이 머리를 쫓아가세요</>}</strong><small>{tutorialRetry ? '다시 해도 시간·기회 차감 없음' : '첫 실패는 시간·기회 차감 없음'}</small></div>}
           <div className="field-dots" aria-hidden="true"><i /><i /><i /><i /></div>
-        </div><p className={`game-tip ${(difficulty.hitsRequired ?? 1) > 1 ? 'is-boss-tip' : ''}`}>{mode === 'duel' ? activeDuelSession ? '한 판 무제한 · 먼저 잡으면 1승 · 먼저 5승하면 끝' : '시간·기회 제한 없음 · 같은 냥이 · 먼저 잡는 즉시 승' : (difficulty.hitsRequired ?? 1) > 1 ? `보스전 · 머리를 ${difficulty.hitsRequired}번 잡아야 승리 · 빗나가면 기회 차감` : '꾹 누르고 쫓다가 머리에서 떼기 · 놓치면 기회 1개 차감'}</p>
+        </div><p className={`game-tip ${(difficulty.hitsRequired ?? 1) > 1 ? 'is-boss-tip' : ''}`}>{mode === 'duel' ? timedBossDuel ? `60초 동안 더 많이 명중 · ${difficulty.hitsRequired}번 먼저 잡으면 즉시 1승 · 동점은 무승부` : activeDuelSession ? '한 판 무제한 · 먼저 잡으면 1승 · 먼저 5승하면 끝' : '시간·기회 제한 없음 · 같은 냥이 · 먼저 잡는 즉시 승' : (difficulty.hitsRequired ?? 1) > 1 ? `보스전 · 머리를 ${difficulty.hitsRequired}번 잡아야 승리 · 빗나가면 기회 차감` : '꾹 누르고 쫓다가 머리에서 떼기 · 놓치면 기회 1개 차감'}</p>
       </section>}
 
       {screen === 'ending' && result && <section className="ending-screen page-enter">
